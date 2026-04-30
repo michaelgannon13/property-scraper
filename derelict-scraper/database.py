@@ -1,0 +1,74 @@
+import sqlite3
+from pathlib import Path
+from datetime import datetime, timezone
+
+DB_PATH = Path("derelict_sites.db")
+
+
+def get_connection() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db() -> None:
+    with get_connection() as conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS derelict_sites (
+                id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+                council                TEXT NOT NULL,
+                ds_ref                 TEXT,
+                reg_no                 TEXT,
+                address                TEXT,
+                owner                  TEXT,
+                owner_address          TEXT,
+                occupier               TEXT,
+                electoral_area         TEXT,
+                date_entered_register  TEXT,
+                valuation              REAL,
+                valuation_date         TEXT,
+                days_on_register       INTEGER,
+                last_updated           TEXT,
+                raw_source_file        TEXT,
+                UNIQUE(council, ds_ref)
+            );
+
+            CREATE TABLE IF NOT EXISTS scrape_log (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                council        TEXT    NOT NULL,
+                run_at         TEXT    NOT NULL,
+                status         TEXT    NOT NULL,
+                rows_inserted  INTEGER,
+                source_file    TEXT,
+                error_msg      TEXT
+            );
+        """)
+
+
+def replace_council(conn: sqlite3.Connection, council_code: str,
+                    rows: list, source_file: str) -> int:
+    with conn:
+        conn.execute("DELETE FROM derelict_sites WHERE council = ?", (council_code,))
+        if rows:
+            conn.executemany(
+                """INSERT OR IGNORE INTO derelict_sites
+                   (council, ds_ref, reg_no, address, owner, owner_address, occupier,
+                    electoral_area, date_entered_register, valuation, valuation_date,
+                    days_on_register, last_updated, raw_source_file)
+                   VALUES (:council, :ds_ref, :reg_no, :address, :owner, :owner_address,
+                           :occupier, :electoral_area, :date_entered_register, :valuation,
+                           :valuation_date, :days_on_register, :last_updated, :raw_source_file)""",
+                rows,
+            )
+    return len(rows)
+
+
+def log_scrape(council: str, status: str, rows_inserted: int = 0,
+               source_file: str = None, error_msg: str = None) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO scrape_log (council, run_at, status, rows_inserted, source_file, error_msg)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (council, datetime.now(timezone.utc).isoformat(), status, rows_inserted, source_file, error_msg),
+        )
