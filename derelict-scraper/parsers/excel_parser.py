@@ -1,3 +1,4 @@
+import re
 import pandas as pd
 from pathlib import Path
 import logging
@@ -35,7 +36,7 @@ def parse(filepath: Path, column_map: dict) -> pd.DataFrame:
     else:
         raise ValueError(f"Unsupported file type: {suffix}")
 
-    df.columns = [str(c).strip() for c in df.columns]
+    df.columns = [re.sub(r'\s+', ' ', str(c)).strip() for c in df.columns]
     df = df.rename(columns=column_map)
 
     keep = [c for c in df.columns if c in TARGET_COLUMNS]

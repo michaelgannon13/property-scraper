@@ -11,7 +11,7 @@ from tqdm import tqdm
 import database
 import utils
 from scrapers.base import GenericScraper
-from parsers import excel_parser, pdf_parser
+from parsers import excel_parser, pdf_parser, html_parser
 
 
 def load_config(path: Path = Path("config.json")) -> list:
@@ -20,25 +20,31 @@ def load_config(path: Path = Path("config.json")) -> list:
 
 
 def dispatch_parser(filepath: Path, file_type: str, column_map: dict):
-    if file_type in ("excel", "csv"):
-        return excel_parser.parse(filepath, column_map)
-    if file_type == "pdf":
+    # Actual file extension takes precedence over config file_type
+    suffix = filepath.suffix.lower()
+    if suffix == ".pdf" or file_type == "pdf":
         return pdf_parser.parse(filepath, column_map)
-    raise ValueError(f"Unknown file_type: {file_type}")
+    if suffix in (".html", ".htm") or file_type == "html":
+        return html_parser.parse(filepath, column_map)
+    if suffix in (".xlsx", ".xls", ".csv") or file_type in ("excel", "csv"):
+        return excel_parser.parse(filepath, column_map)
+    raise ValueError(f"Cannot determine parser for {filepath.name} (file_type={file_type})")
 
 
 def process_council(cfg: dict, run_id_str: str, session: requests.Session,
                     dry_run: bool, log) -> dict:
     code = cfg["council_code"]
     result = {"code": code, "status": "error", "rows": 0, "error": ""}
-
+    _orig_verify = session.verify
+    session.verify = cfg.get("ssl_verify", True)
     try:
         scraper = GenericScraper(cfg, session)
         link = scraper.find_link()
         if not link:
             raise RuntimeError("No register link found on page")
 
-        filepath = utils.download_file(link, code, run_id_str, session)
+        filepath = utils.download_file(link, code, run_id_str, session,
+                                       force_suffix=".html" if cfg["file_type"] == "html" else None)
         df = dispatch_parser(filepath, cfg["file_type"], cfg.get("column_map") or {})
         rows = utils.normalise_dataframe(df, code, filepath.name)
 
@@ -60,6 +66,8 @@ def process_council(cfg: dict, run_id_str: str, session: requests.Session,
                 database.log_scrape(code, "error", error_msg=str(exc))
             except Exception:
                 pass
+    finally:
+        session.verify = _orig_verify
 
     return result
 

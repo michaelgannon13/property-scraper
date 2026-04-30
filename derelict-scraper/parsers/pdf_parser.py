@@ -14,6 +14,30 @@ TARGET_COLUMNS = {
 _DS_REF_RE = re.compile(r'^(DS\d+)\s+(.+)$')
 
 
+def _fix_shifted_headers(df: pd.DataFrame) -> pd.DataFrame:
+    """Fix merged-cell PDFs where pdfplumber places header text one column right of the data."""
+    cols = list(df.columns)
+    named_idxs = [i for i, c in enumerate(cols) if c and str(c).strip()]
+    if not named_idxs:
+        return df
+    all_empty = all(df.iloc[:, i].replace('', pd.NA).isna().all() for i in named_idxs)
+    if not all_empty:
+        return df
+    all_left_has_data = all(
+        i > 0 and not df.iloc[:, i - 1].replace('', pd.NA).isna().all()
+        for i in named_idxs
+    )
+    if not all_left_has_data:
+        return df
+    new_cols = list(cols)
+    for i in named_idxs:
+        new_cols[i - 1] = cols[i]
+        new_cols[i] = ''
+    df = df.copy()
+    df.columns = new_cols
+    return df
+
+
 def _find_header_row_idx(rows: list) -> int:
     """Return index of the first row where the majority of cells are non-None (skips title rows)."""
     for i, row in enumerate(rows[:10]):
@@ -36,7 +60,8 @@ def _extract_with_pdfplumber(filepath: Path) -> pd.DataFrame:
     header_idx = _find_header_row_idx(tables)
     header = tables[header_idx]
     data = tables[header_idx + 1:]
-    return pd.DataFrame(data, columns=header)
+    df = pd.DataFrame(data, columns=header)
+    return _fix_shifted_headers(df)
 
 
 def _extract_text_fallback(filepath: Path) -> pd.DataFrame:
