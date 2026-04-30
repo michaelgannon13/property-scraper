@@ -35,6 +35,7 @@ def test_parse_falls_back_to_tabula_when_pdfplumber_empty(tmp_path, monkeypatch)
         "Owner": ["Bob"],
     })
     monkeypatch.setattr(pdf_parser, "_extract_with_pdfplumber", lambda _: pd.DataFrame())
+    monkeypatch.setattr(pdf_parser, "_extract_text_fallback", lambda _: pd.DataFrame())
     monkeypatch.setattr(pdf_parser, "_extract_with_tabula", lambda _: fake_df)
     dummy_pdf = tmp_path / "dummy2.pdf"
     dummy_pdf.write_bytes(b"%PDF-1.4 fake")
@@ -44,6 +45,7 @@ def test_parse_falls_back_to_tabula_when_pdfplumber_empty(tmp_path, monkeypatch)
 
 def test_parse_raises_when_both_extractors_empty(tmp_path, monkeypatch):
     monkeypatch.setattr(pdf_parser, "_extract_with_pdfplumber", lambda _: pd.DataFrame())
+    monkeypatch.setattr(pdf_parser, "_extract_text_fallback", lambda _: pd.DataFrame())
     monkeypatch.setattr(pdf_parser, "_extract_with_tabula", lambda _: pd.DataFrame())
     dummy_pdf = tmp_path / "dummy3.pdf"
     dummy_pdf.write_bytes(b"%PDF-1.4 fake")

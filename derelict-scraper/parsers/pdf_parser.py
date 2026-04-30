@@ -1,3 +1,4 @@
+import re
 import pandas as pd
 from pathlib import Path
 import logging
@@ -10,6 +11,17 @@ TARGET_COLUMNS = {
     "valuation", "valuation_date",
 }
 
+_DS_REF_RE = re.compile(r'^(DS\d+)\s+(.+)$')
+
+
+def _find_header_row_idx(rows: list) -> int:
+    """Return index of the first row where the majority of cells are non-None (skips title rows)."""
+    for i, row in enumerate(rows[:10]):
+        non_null = sum(v is not None for v in row)
+        if non_null > len(row) / 2:
+            return i
+    return 0
+
 
 def _extract_with_pdfplumber(filepath: Path) -> pd.DataFrame:
     import pdfplumber
@@ -21,8 +33,25 @@ def _extract_with_pdfplumber(filepath: Path) -> pd.DataFrame:
                 tables.extend(tbl)
     if not tables:
         return pd.DataFrame()
-    header, *data = tables
+    header_idx = _find_header_row_idx(tables)
+    header = tables[header_idx]
+    data = tables[header_idx + 1:]
     return pd.DataFrame(data, columns=header)
+
+
+def _extract_text_fallback(filepath: Path) -> pd.DataFrame:
+    """Parse text-only PDFs where pdfplumber finds no table borders."""
+    import pdfplumber
+    rows = []
+    with pdfplumber.open(filepath) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text() or ""
+            for line in text.splitlines():
+                line = line.strip()
+                m = _DS_REF_RE.match(line)
+                if m:
+                    rows.append({"ds_ref": m.group(1), "address": m.group(2)})
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
 
 
 def _extract_with_tabula(filepath: Path) -> pd.DataFrame:
@@ -39,12 +68,15 @@ def _extract_with_tabula(filepath: Path) -> pd.DataFrame:
 def parse(filepath: Path, column_map: dict) -> pd.DataFrame:
     df = _extract_with_pdfplumber(filepath)
     if df.empty:
-        logger.info("pdfplumber found no tables, trying tabula")
+        logger.info("pdfplumber found no tables, trying text extraction")
+        df = _extract_text_fallback(filepath)
+    if df.empty:
+        logger.info("text extraction empty, trying tabula")
         df = _extract_with_tabula(filepath)
     if df.empty:
         raise ValueError("Could not extract any tables from PDF")
 
-    df.columns = [str(c).strip() if c else "" for c in df.columns]
+    df.columns = [re.sub(r'\s+', ' ', str(c)).strip() if c else "" for c in df.columns]
     df = df.rename(columns=column_map)
 
     keep = [c for c in df.columns if c in TARGET_COLUMNS]
