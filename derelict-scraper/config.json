@@ -1,0 +1,367 @@
+[
+  {
+    "name": "South Dublin County Council",
+    "council_code": "SDCC",
+    "page_url": "https://www.sdcc.ie/en/services/planning-building-control/derelict-sites/",
+    "file_type": "excel",
+    "verified": true,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": ".xlsx", "direct_url": null },
+    "column_map": {
+      "Site Reference": "ds_ref",
+      "Register No": "reg_no",
+      "Address": "address",
+      "Owner": "owner",
+      "Owner Address": "owner_address",
+      "Occupier": "occupier",
+      "Electoral Area": "electoral_area",
+      "Date Entered Register": "date_entered_register",
+      "Valuation": "valuation",
+      "Valuation Date": "valuation_date"
+    }
+  },
+  {
+    "name": "Dublin City Council",
+    "council_code": "DCC",
+    "page_url": "https://www.dublincity.ie/planning-and-land-use/active-land-management/derelict-sites-register",
+    "file_type": "excel",
+    "verified": true,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": ".xlsx", "direct_url": null },
+    "column_map": {
+      "Site Reference": "ds_ref",
+      "Register No": "reg_no",
+      "Address": "address",
+      "Owner": "owner",
+      "Owner Address": "owner_address",
+      "Occupier": "occupier",
+      "Electoral Area": "electoral_area",
+      "Date Entered Register": "date_entered_register",
+      "Valuation": "valuation",
+      "Valuation Date": "valuation_date"
+    }
+  },
+  {
+    "name": "Dún Laoghaire-Rathdown County Council",
+    "council_code": "DLR",
+    "page_url": "https://www.dlrcoco.ie/property-management/derelict-sites",
+    "file_type": "excel",
+    "verified": true,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": ".xlsx", "direct_url": null },
+    "column_map": {
+      "Site Reference": "ds_ref",
+      "Register No": "reg_no",
+      "Address": "address",
+      "Owner": "owner",
+      "Owner Address": "owner_address",
+      "Occupier": "occupier",
+      "Electoral Area": "electoral_area",
+      "Date Entered Register": "date_entered_register",
+      "Valuation": "valuation",
+      "Valuation Date": "valuation_date"
+    }
+  },
+  {
+    "name": "Fingal County Council",
+    "council_code": "FCC",
+    "page_url": "https://www.fingal.ie/TownRegenerationOffice/DerelictSites",
+    "file_type": "excel",
+    "verified": true,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": ".xlsx", "direct_url": null },
+    "column_map": {
+      "Site Reference": "ds_ref",
+      "Register No": "reg_no",
+      "Address": "address",
+      "Owner": "owner",
+      "Owner Address": "owner_address",
+      "Occupier": "occupier",
+      "Electoral Area": "electoral_area",
+      "Date Entered Register": "date_entered_register",
+      "Valuation": "valuation",
+      "Valuation Date": "valuation_date"
+    }
+  },
+  {
+    "name": "Cork County Council",
+    "council_code": "CCC",
+    "page_url": "https://www.corkcoco.ie/en/resident/municipal-districts/derelict-sites-dangerous-structures/derelict-sites-register-list",
+    "file_type": "excel",
+    "verified": true,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": ".xlsx", "direct_url": null },
+    "column_map": {
+      "Site Reference": "ds_ref",
+      "Register No": "reg_no",
+      "Address": "address",
+      "Owner": "owner",
+      "Owner Address": "owner_address",
+      "Occupier": "occupier",
+      "Electoral Area": "electoral_area",
+      "Date Entered Register": "date_entered_register",
+      "Valuation": "valuation",
+      "Valuation Date": "valuation_date"
+    }
+  },
+  {
+    "name": "Cork City Council",
+    "council_code": "CORK_CITY",
+    "page_url": "https://www.corkcity.ie/en/council-services/planning-development/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Carlow County Council",
+    "council_code": "CARLOW",
+    "page_url": "https://www.carlowcoco.ie/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Cavan County Council",
+    "council_code": "CAVAN",
+    "page_url": "https://www.cavancoco.ie/services/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Clare County Council",
+    "council_code": "CLARE",
+    "page_url": "https://www.clare.ie/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Donegal County Council",
+    "council_code": "DONEGAL",
+    "page_url": "https://www.donegalcoco.ie/services/planning/derelictsites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Galway City Council",
+    "council_code": "GCC",
+    "page_url": "https://www.galwaycity.ie/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Galway County Council",
+    "council_code": "GALWAY",
+    "page_url": "https://www.galway.ie/en/services/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Kerry County Council",
+    "council_code": "KERRY",
+    "page_url": "https://www.kerrycoco.ie/planning/derelict-sites-register/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Kildare County Council",
+    "council_code": "KILDARE",
+    "page_url": "https://www.kildare.ie/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Kilkenny County Council",
+    "council_code": "KILKENNY",
+    "page_url": "https://www.kilkennycoco.ie/eng/services/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Laois County Council",
+    "council_code": "LAOIS",
+    "page_url": "https://www.laois.ie/departments/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Leitrim County Council",
+    "council_code": "LEITRIM",
+    "page_url": "https://www.leitrimcoco.ie/eng/services/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Limerick City and County Council",
+    "council_code": "LIMERICK",
+    "page_url": "https://www.limerick.ie/council/services/planning-and-development/derelict-sites",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Longford County Council",
+    "council_code": "LONGFORD",
+    "page_url": "https://www.longfordcoco.ie/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Louth County Council",
+    "council_code": "LOUTH",
+    "page_url": "https://www.louthcoco.ie/en/services/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Mayo County Council",
+    "council_code": "MAYO",
+    "page_url": "https://www.mayo.ie/planning/derelict-sites-register/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Meath County Council",
+    "council_code": "MEATH",
+    "page_url": "https://www.meath.ie/council/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Monaghan County Council",
+    "council_code": "MONAGHAN",
+    "page_url": "https://www.monaghancoco.ie/services/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Offaly County Council",
+    "council_code": "OFFALY",
+    "page_url": "https://www.offaly.ie/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Roscommon County Council",
+    "council_code": "ROSCOMMON",
+    "page_url": "https://www.roscommoncoco.ie/en/services/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Sligo County Council",
+    "council_code": "SLIGO",
+    "page_url": "https://www.sligococo.ie/services/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Tipperary County Council",
+    "council_code": "TIPPERARY",
+    "page_url": "https://www.tipperarycoco.ie/planning/derelict-sites-register/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Waterford City and County Council",
+    "council_code": "WATERFORD",
+    "page_url": "https://www.waterfordcouncil.ie/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Westmeath County Council",
+    "council_code": "WESTMEATH",
+    "page_url": "https://www.westmeathcoco.ie/en/ourservices/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Wexford County Council",
+    "council_code": "WEXFORD",
+    "page_url": "https://www.wexfordcoco.ie/departments/planning/derelict-sites/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  },
+  {
+    "name": "Wicklow County Council",
+    "council_code": "WICKLOW",
+    "page_url": "https://www.wicklow.ie/living/planning/derelict-sites-register/",
+    "file_type": "excel",
+    "verified": false,
+    "enabled": true,
+    "hints": { "selector": null, "url_contains": null, "direct_url": null },
+    "column_map": {}
+  }
+]
