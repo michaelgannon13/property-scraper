@@ -403,11 +403,19 @@
     "name": "Waterford City and County Council",
     "council_code": "WATERFORD",
     "page_url": "https://www.waterfordcouncil.ie/planning/derelict-sites/",
-    "file_type": "pdf",
+    "file_type": "arcgis",
     "verified": false,
-    "enabled": false,
-    "hints": { "selector": null, "url_contains": null, "direct_url": null },
-    "column_map": {}
+    "enabled": true,
+    "hints": {
+      "direct_url": "https://services-eu1.arcgis.com/eivETUtIaP8x2Pdh/ArcGIS/rest/services/Derelict_Sites_Register_Public_View/FeatureServer/0/query"
+    },
+    "column_map": {
+      "reference": "ds_ref",
+      "address": "address",
+      "owner": "owner",
+      "dateregistered": "date_entered_register",
+      "currentmarketvalue": "valuation"
+    }
   },
   {
     "name": "Westmeath County Council",
@@ -438,11 +446,24 @@
   {
     "name": "Wicklow County Council",
     "council_code": "WICKLOW",
-    "page_url": "https://www.wicklow.ie/living/planning/derelict-sites-register/",
+    "page_url": "https://www.wicklow.ie/Living/Services/Planning/Derelict-Vacant-Sites/Derelict-Sites",
     "file_type": "pdf",
     "verified": false,
-    "enabled": false,
-    "hints": { "selector": null, "url_contains": ".pdf", "direct_url": null },
-    "column_map": {}
+    "enabled": true,
+    "hints": {
+      "js_render": true,
+      "selector": null,
+      "url_contains": null,
+      "direct_url": null
+    },
+    "column_map": {
+      "Ref. No.": "ds_ref",
+      "Address of property": "address",
+      "Owner": "owner",
+      "Date entered on Register": "date_entered_register",
+      "Date Date entered on removed Register from Register": "date_entered_register",
+      "Market Value": "valuation",
+      "Market Value Date": "valuation_date"
+    }
   }
 ]

@@ -38,25 +38,34 @@ def process_council(cfg: dict, run_id_str: str, session: requests.Session,
     _orig_verify = session.verify
     session.verify = cfg.get("ssl_verify", True)
     try:
-        scraper = GenericScraper(cfg, session)
-        link = scraper.find_link()
-        if not link:
-            raise RuntimeError("No register link found on page")
-
-        filepath = utils.download_file(link, code, run_id_str, session,
-                                       force_suffix=".html" if cfg["file_type"] == "html" else None)
-        df = dispatch_parser(filepath, cfg["file_type"], cfg.get("column_map") or {})
-        rows = utils.normalise_dataframe(df, code, filepath.name)
+        if cfg["file_type"] == "arcgis":
+            from parsers import arcgis_parser
+            arcgis_url = (cfg.get("hints") or {}).get("direct_url")
+            if not arcgis_url:
+                raise RuntimeError("arcgis file_type requires hints.direct_url")
+            df = arcgis_parser.parse(arcgis_url, cfg.get("column_map") or {}, session)
+            rows = utils.normalise_dataframe(df, code, arcgis_url)
+            source_name = arcgis_url
+        else:
+            scraper = GenericScraper(cfg, session)
+            link = scraper.find_link()
+            if not link:
+                raise RuntimeError("No register link found on page")
+            filepath = utils.download_file(link, code, run_id_str, session,
+                                           force_suffix=".html" if cfg["file_type"] == "html" else None)
+            df = dispatch_parser(filepath, cfg["file_type"], cfg.get("column_map") or {})
+            rows = utils.normalise_dataframe(df, code, filepath.name)
+            source_name = filepath.name
 
         if not dry_run:
             conn = database.get_connection()
-            database.replace_council(conn, code, rows, filepath.name)
+            database.replace_council(conn, code, rows, source_name)
             database.log_scrape(code, "ok", rows_inserted=len(rows),
-                                source_file=filepath.name)
+                                source_file=source_name)
 
         result["status"] = "ok"
         result["rows"] = len(rows)
-        log.info("[%s] OK — %d rows from %s", code, len(rows), filepath.name)
+        log.info("[%s] OK — %d rows from %s", code, len(rows), source_name)
 
     except Exception as exc:
         result["error"] = str(exc)

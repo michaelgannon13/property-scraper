@@ -8,3 +8,4 @@ tabula-py==2.9.3
 tqdm==4.66.4
 pytest==8.2.2
 pytest-mock==3.14.0
+playwright
