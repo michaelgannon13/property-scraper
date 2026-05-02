@@ -201,3 +201,22 @@ Google Maps API key has no IP restrictions (was needed to fix IPv6 geocoding iss
 2. GitHub Actions nightly cron
 3. PPR scraper for last sale price
 4. Enable more councils (CLARE, KERRY, GALWAY county)
+
+---
+
+## Session: 2026-05-03
+
+### What we worked on
+- Short session — planning and credential gathering for Supabase sync.
+- Discussed PPR (Property Price Register) as a data enrichment step.
+
+### Decisions made
+- **PPR will be part of the nightly pipeline** — confirmed it's worth doing. Plan: download full PPR CSV (~600k rows), fuzzy-match against derelict addresses by county, store `last_sale_price` + `last_sale_date` in DB. Use rapidfuzz with ~85% confidence threshold. Expected coverage: 30-50% (residential only, commercial sales not in PPR).
+- **Build order stays: Supabase sync → nightly cron → PPR** — rationale: PPR data is only useful once it flows end-to-end to the frontend automatically. No point building it while data is still local-only.
+- **Supabase project identified**: `https://wpgrcieidaalkkgococi.supabase.co` — service role key still needed (from supabase.com → Project Settings → API, not from Lovable).
+
+### What's next
+1. **Immediate**: User to provide Supabase service role key → build `sync.py`
+2. GitHub Actions nightly cron (scrape → geocode → PPR match → sync)
+3. PPR scraper
+4. Enable more councils
