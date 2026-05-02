@@ -60,3 +60,63 @@ def test_run_id_format():
     rid = utils.run_id()
     assert len(rid) == 19
     assert rid[10] == "_"
+
+
+# --- classify_property_type ---
+
+def test_classify_apartment():
+    assert utils.classify_property_type("Apartment 4, Mill Lane") == "Apartment"
+
+
+def test_classify_cottage():
+    assert utils.classify_property_type("2 Rose Cottages, Ballina") == "Cottage"
+
+
+def test_classify_house():
+    assert utils.classify_property_type("Derelict House, Main Street") == "House"
+
+
+def test_classify_industrial_warehouse():
+    assert utils.classify_property_type("Old Warehouse, North Quay") == "Industrial"
+
+
+def test_classify_industrial_distillery():
+    assert utils.classify_property_type("Former Distillery, Watercourse Road") == "Industrial"
+
+
+def test_classify_institutional_church():
+    assert utils.classify_property_type("St Mary's Church, Ballyhaunis") == "Institutional"
+
+
+def test_classify_institutional_convent():
+    assert utils.classify_property_type("Former Good Shepherd Convent Site") == "Institutional"
+
+
+def test_classify_commercial_pub():
+    assert utils.classify_property_type("Kennedy's Bar, Main Street") == "Commercial"
+
+
+def test_classify_commercial_hotel():
+    assert utils.classify_property_type("The Grand Hotel, Malahide") == "Commercial"
+
+
+def test_classify_vacant_land():
+    assert utils.classify_property_type("Site at South Douglas Road") == "Vacant Land"
+
+
+def test_classify_other_plain_address():
+    assert utils.classify_property_type("14 Patrick Street, Drogheda") == "Other"
+
+
+def test_classify_none_returns_other():
+    assert utils.classify_property_type(None) == "Other"
+
+
+def test_classify_no_false_positive_bar_in_barrack():
+    # "Barrack" contains "bar" as substring — must not match Commercial
+    assert utils.classify_property_type("64 Barrack Street, Dundalk") == "Other"
+
+
+def test_classify_cottage_beats_site():
+    # "Site comprising cottages" — Cottage should win over Vacant Land
+    assert utils.classify_property_type("Site comprising of 6 & 7 Bramble Cottages") == "Cottage"

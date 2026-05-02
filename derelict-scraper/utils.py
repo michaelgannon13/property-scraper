@@ -4,6 +4,48 @@ from datetime import datetime, date, timezone
 from pathlib import Path
 from typing import Optional
 
+# Priority-ordered: first match wins. Apartment/Cottage before House so
+# "Bramble Cottages" beats a generic "site"; Industrial/Institutional/Commercial
+# before House so "Warehouse House" → Industrial.
+_PROPERTY_TYPE_PATTERNS = [
+    ("Apartment",    [r'\bapartments?\b', r'\bflats?\b']),
+    ("Cottage",      [r'\bcottages?\b']),
+    ("Industrial",   [r'\bfactori(?:es|y)\b', r'\bwarehouses?\b', r'\bmills?\b',
+                      r'\bdepots?\b', r'\bindustrial\b', r'\bcreamer(?:y|ies)\b',
+                      r'\bdistiller(?:y|ies)\b', r'\bbrewer(?:y|ies)\b',
+                      r'\bforges?\b', r'\bworks\b']),
+    ("Institutional",[r'\bchurch(?:es)?\b', r'\bschools?\b', r'\bconvents?\b',
+                      r'\bhospitals?\b', r'\bpresbytery\b', r'\bmonasteri(?:es|y)\b',
+                      r'\bcollege\b', r'\bcathedrals?\b', r'\bchapel(?:s)?\b',
+                      r'\bgarda\b', r'\bcourthouse\b', r'\blibrari(?:es|y)\b']),
+    ("Commercial",   [r'\bpubs?\b', r'\bhotels?\b', r'\brestaurants?\b',
+                      r'\bcaf[eé]s?\b', r'\boffices?\b', r'\bretail\b',
+                      r'\bshops?\b', r'\bsupermarkets?\b', r'\bgarages?\b',
+                      r'\bnightclubs?\b', r'\bniteclubs?\b', r'\bcinemas?\b',
+                      r'\bbanks?\b', r'\btaverns?\b', r'\bbar\b', r'\binns?\b',
+                      r'\bcommercial\b', r'\bpetrol\b', r'\bpremises\b',
+                      r'\bbusiness\b']),
+    ("House",        [r'\bhouses?\b', r'\bdwellings?\b', r'\bbungalows?\b',
+                      r'\bfarmhouses?\b', r'\bresidential\b', r'\bvillas?\b']),
+    ("Vacant Land",  [r'\bsites?\b', r'\blands?\b', r'\bplots?\b',
+                      r'\bfields?\b', r'\bvacant\b']),
+]
+
+_COMPILED_TYPE_PATTERNS = [
+    (ptype, [re.compile(p, re.IGNORECASE) for p in patterns])
+    for ptype, patterns in _PROPERTY_TYPE_PATTERNS
+]
+
+
+def classify_property_type(address: Optional[str]) -> str:
+    if not address:
+        return "Other"
+    for prop_type, patterns in _COMPILED_TYPE_PATTERNS:
+        for pattern in patterns:
+            if pattern.search(address):
+                return prop_type
+    return "Other"
+
 import requests
 
 LOGS_DIR = Path("logs")
@@ -129,5 +171,6 @@ def normalise_dataframe(df, council_code: str, source_file: str) -> list:
         entry["valuation"] = parse_valuation(entry["valuation"])
         entry["days_on_register"] = days_since(entry["date_entered_register"])
         entry["last_updated"] = date.today().isoformat()
+        entry["property_type"] = classify_property_type(entry.get("address"))
         rows.append(entry)
     return rows

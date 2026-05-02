@@ -34,6 +34,7 @@ def init_db() -> None:
                 raw_source_file        TEXT,
                 lat                    REAL,
                 lng                    REAL,
+                property_type          TEXT,
                 UNIQUE(council, ds_ref)
             );
 
@@ -47,9 +48,9 @@ def init_db() -> None:
                 error_msg      TEXT
             );
         """)
-        for col in ("lat", "lng"):
+        for col, coltype in (("lat", "REAL"), ("lng", "REAL"), ("property_type", "TEXT")):
             try:
-                conn.execute(f"ALTER TABLE derelict_sites ADD COLUMN {col} REAL")
+                conn.execute(f"ALTER TABLE derelict_sites ADD COLUMN {col} {coltype}")
             except Exception:
                 pass
 
@@ -62,10 +63,11 @@ def replace_council(conn: sqlite3.Connection, council_code: str,
                 """INSERT INTO derelict_sites
                    (council, ds_ref, reg_no, address, owner, owner_address, occupier,
                     electoral_area, date_entered_register, valuation, valuation_date,
-                    days_on_register, last_updated, raw_source_file)
+                    days_on_register, last_updated, raw_source_file, property_type)
                    VALUES (:council, :ds_ref, :reg_no, :address, :owner, :owner_address,
                            :occupier, :electoral_area, :date_entered_register, :valuation,
-                           :valuation_date, :days_on_register, :last_updated, :raw_source_file)
+                           :valuation_date, :days_on_register, :last_updated, :raw_source_file,
+                           :property_type)
                    ON CONFLICT(council, ds_ref) DO UPDATE SET
                        reg_no                = excluded.reg_no,
                        address               = excluded.address,
@@ -78,7 +80,8 @@ def replace_council(conn: sqlite3.Connection, council_code: str,
                        valuation_date        = excluded.valuation_date,
                        days_on_register      = excluded.days_on_register,
                        last_updated          = excluded.last_updated,
-                       raw_source_file       = excluded.raw_source_file""",
+                       raw_source_file       = excluded.raw_source_file,
+                       property_type         = excluded.property_type""",
                 rows,
             )
     return len(rows)
