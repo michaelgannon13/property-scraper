@@ -165,3 +165,39 @@ GOOGLE_MAPS_API_KEY=...   # in derelict-scraper/.env (gitignored)
 ```
 
 Google Maps API key has no IP restrictions (was needed to fix IPv6 geocoding issue).
+
+---
+
+## Session: 2026-05-02
+
+### What we worked on
+- Resumed after context compaction. Previous session had built geocoding (Nominatim + Google), UPSERT schema, and fixed a critical Nominatim/Eircode bug (Nominatim matches Eircode routing keys as road numbers → all non-Dublin addresses got Dublin coords).
+- Re-geocoded 4 NULLed overseas pins (had been set NULL after being geocoded to New York/France/Jamaica in the pre-fix run). Two came back wrong again (Richmond Ave D.3 → Westmeath, Spanish Parade Galway → Cavan) — Nominatim still wrong for ambiguous addresses. Fixed by forcing those two through Google directly with explicit city context in the query.
+- Added `property_type` column and keyword classification (`classify_property_type()` in utils.py). Priority-ordered regex rules: Apartment > Cottage > Industrial > Institutional > Commercial > House > Vacant Land > Other. Found and fixed regex bug: `\bchurches?\b` matched "churches" but not "church" — changed to `\bchurch(?:es)?\b`.
+- Moved project to its own private GitHub repo: `github.com/michaelgannon13/property-scraper`.
+- Audited owner data coverage: only 24% overall. Found Mayo (308 sites) had an owner column in source XLSX that wasn't mapped. Fixed column_map → 307/308 now have owner data.
+- Found Limerick (391 sites) had `PROPERTY TYPE` and `Section 8(7)` date columns not mapped. Fixed → all Limerick sites now have real source property types (Residential/Commercial/Site) and 377/391 have entry dates.
+- Added `_SOURCE_TYPE_MAP` in utils.py so councils that provide property types in source data take precedence over keyword classification.
+- Created `BRAIN.md` (this file) and `/update-brain` slash command.
+
+### Decisions made
+- **Owner coverage ceiling is ~39%** — councils like DCC, Cork City, Limerick simply don't publish owner names in their registers. Decided not to pursue Land Registry (Tailte Éireann) lookups — costs €5-25/folio, not viable for bulk use.
+- **"Other" property type at ~61% is acceptable** — plain numbered street addresses genuinely can't be classified from text. Would need a different data source to do better.
+- **Repo moved to `property-scraper` (private)** — code was previously in `michaelgannon13/youtube` which was wrong. Used `git subtree split` to extract history cleanly.
+- **PPR (Property Price Register) deferred** — identified as the right source for last sale price and potentially some owner names, but deferred until after Supabase sync is live.
+- **`days_on_register` recalculation is fine as-is** — it recalculates correctly on every scrape run via the UPSERT. No fix needed; just needs the nightly cron to keep it fresh.
+- **Geocoding strategy**: Eircodes always go to Google (never Nominatim). For everything else, Nominatim first, Google fallback. Ireland bounding box rejects results outside 51.3–55.5°N, 10.7–5.5°W. All Google calls use `components=country:IE`.
+
+### Problems hit and solved
+- **Google API key had HTTP referer restriction** — blocked server-side geocoding. Fixed by removing all IP/referer restrictions.
+- **IPv6 vs IPv4 whitelist mismatch** — machine was sending requests from IPv6 but user whitelisted IPv4. Fixed by removing IP restrictions entirely.
+- **Nominatim + Eircode = garbage Dublin coords** — root cause: Nominatim matches "F26" (Eircode routing key) as a road number near Dublin. Fix: never send Eircodes to Nominatim; route to Google only.
+- **4 overseas pins** (New York, France, England, Jamaica) from pre-fix run. NULLed and re-geocoded with fixed strategy.
+- **3 FCC CSV header rows** leaked as property data ("Address of Owner", "Reasons", "Photographs"). Deleted from DB; added `_is_header_row()` filter to `normalise_dataframe()`.
+- **Mayo owner column had multi-line header with Unicode ellipsis** — after whitespace normalisation in excel_parser (`re.sub(r'\s+', ' ')`), the key becomes a long single-line string. Had to compute exact normalised form to add to config.json.
+
+### What's next
+1. Supabase sync — waiting on project URL + service role key from user
+2. GitHub Actions nightly cron
+3. PPR scraper for last sale price
+4. Enable more councils (CLARE, KERRY, GALWAY county)
