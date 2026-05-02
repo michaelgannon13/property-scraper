@@ -102,6 +102,7 @@ def main():
     parser.add_argument("--councils", help="Comma-separated council codes (e.g. DCC,SDCC)")
     parser.add_argument("--export", choices=["csv", "excel"], help="Export format after run")
     parser.add_argument("--dry-run", action="store_true", help="Parse only, no DB writes")
+    parser.add_argument("--geocode", action="store_true", help="Geocode new addresses after scraping")
     args = parser.parse_args()
 
     rid = utils.run_id()
@@ -149,6 +150,10 @@ def main():
     if errors:
         print(f"Errors: {', '.join(r['code'] for r in errors)}")
         print(f"See logs/{rid}.log for details")
+
+    if args.geocode and not args.dry_run:
+        import geocode
+        geocode.run()
 
     if args.export:
         dest = export_data(args.export, rid)
