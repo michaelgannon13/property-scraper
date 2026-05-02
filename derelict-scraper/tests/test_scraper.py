@@ -35,21 +35,21 @@ def test_find_link_direct_url_skips_page_fetch():
 
 
 def test_find_link_url_contains():
-    html = '<html><body><a href="/files/derelict-register.xlsx">Register</a></body></html>'
+    html = b'<html><body><a href="/files/derelict-register.xlsx">Register</a></body></html>'
     scraper = make_scraper(hints={"selector": None, "url_contains": ".xlsx", "direct_url": None})
-    scraper.session.get.return_value.text = html
+    scraper.session.get.return_value.content = html
     scraper.session.get.return_value.raise_for_status = MagicMock()
     result = scraper.find_link()
     assert result.endswith(".xlsx")
 
 
 def test_find_link_heuristic_scores_correctly():
-    html = """<html><body>
+    html = b"""<html><body>
         <a href="/about">About Us</a>
         <a href="/files/derelict-sites-register-2024.xlsx">Derelict Sites Register 2024</a>
     </body></html>"""
     scraper = make_scraper(hints={"selector": None, "url_contains": None, "direct_url": None})
-    scraper.session.get.return_value.text = html
+    scraper.session.get.return_value.content = html
     scraper.session.get.return_value.raise_for_status = MagicMock()
     result = scraper.find_link()
     assert "derelict" in result.lower()
@@ -57,9 +57,9 @@ def test_find_link_heuristic_scores_correctly():
 
 
 def test_find_link_returns_none_when_no_candidates():
-    html = "<html><body><a href='/about'>About</a></body></html>"
+    html = b"<html><body><a href='/about'>About</a></body></html>"
     scraper = make_scraper()
-    scraper.session.get.return_value.text = html
+    scraper.session.get.return_value.content = html
     scraper.session.get.return_value.raise_for_status = MagicMock()
     result = scraper.find_link()
     assert result is None

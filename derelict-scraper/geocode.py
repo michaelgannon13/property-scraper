@@ -79,9 +79,12 @@ def geocode_with_nominatim(query: str, session: requests.Session) -> Tuple[Optio
 
 def geocode_with_google(address: str, session: requests.Session, api_key: str) -> Tuple[Optional[float], Optional[float]]:
     try:
+        # components=country:IE forces Google to restrict results to Ireland
+        # even when the address string is ambiguous (e.g. "Richmond Avenue")
+        query = address if address.lower().endswith(", ireland") else f"{address}, Ireland"
         resp = session.get(
             _GOOGLE_URL,
-            params={"address": f"{address}, Ireland", "key": api_key},
+            params={"address": query, "key": api_key, "components": "country:IE"},
             timeout=10,
         )
         resp.raise_for_status()

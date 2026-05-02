@@ -1,3 +1,19 @@
 worktrees/
 .DS_Store
 .env
+
+# Downloaded source files and database
+derelict-scraper/data/
+derelict-scraper/logs/
+derelict-scraper/*.db
+derelict-scraper/*.db-shm
+derelict-scraper/*.db-wal
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Claude internal
+.claude/
