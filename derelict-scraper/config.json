@@ -270,6 +270,8 @@
       "SITE ID": "ds_ref",
       "SITE ADDRESS": "address",
       "Electoral Area": "electoral_area",
+      "PROPERTY TYPE": "property_type",
+      "Section 8(7) Notice of Entry of Particulars on the Register": "date_entered_register",
       "Section 22 Market Value determined (€)": "valuation",
       "DATE OF BASIS OF VALUATION": "valuation_date"
     }
@@ -312,7 +314,8 @@
       "8 (1)a: Location of site": "address",
       "Municipal District": "electoral_area",
       "Section 8(7) date issued": "date_entered_register",
-      "8 (1)e: Market value of land": "valuation"
+      "8 (1)e: Market value of land": "valuation",
+      "Basic Owner name and address details - 'Private Individual….' 'Ltd Company….' 'Mayo Councty Council' 'Private individual, care of [solicitor name/address]": "owner"
     }
   },
   {

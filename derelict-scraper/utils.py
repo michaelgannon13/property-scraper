@@ -31,6 +31,19 @@ _PROPERTY_TYPE_PATTERNS = [
                       r'\bfields?\b', r'\bvacant\b']),
 ]
 
+_SOURCE_TYPE_MAP = {
+    "residential": "House",
+    "commercial": "Commercial",
+    "site": "Vacant Land",
+    "vacant land": "Vacant Land",
+    "mixed use": "Other",
+    "industrial": "Industrial",
+    "apartment": "Apartment",
+    "house": "House",
+    "cottage": "Cottage",
+    "institutional": "Institutional",
+}
+
 _COMPILED_TYPE_PATTERNS = [
     (ptype, [re.compile(p, re.IGNORECASE) for p in patterns])
     for ptype, patterns in _PROPERTY_TYPE_PATTERNS
@@ -56,7 +69,7 @@ _DATE_FORMATS = ("%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d %B %Y", "%d/%m/%y")
 _STANDARD_COLUMNS = [
     "ds_ref", "reg_no", "address", "owner", "owner_address",
     "occupier", "electoral_area", "date_entered_register",
-    "valuation", "valuation_date",
+    "valuation", "valuation_date", "property_type",
 ]
 
 
@@ -171,6 +184,10 @@ def normalise_dataframe(df, council_code: str, source_file: str) -> list:
         entry["valuation"] = parse_valuation(entry["valuation"])
         entry["days_on_register"] = days_since(entry["date_entered_register"])
         entry["last_updated"] = date.today().isoformat()
-        entry["property_type"] = classify_property_type(entry.get("address"))
+        source_type = entry.get("property_type")
+        if source_type:
+            entry["property_type"] = _SOURCE_TYPE_MAP.get(str(source_type).strip().lower(), "Other")
+        else:
+            entry["property_type"] = classify_property_type(entry.get("address"))
         rows.append(entry)
     return rows

@@ -8,7 +8,7 @@ logger = logging.getLogger("derelict.excel")
 TARGET_COLUMNS = {
     "ds_ref", "reg_no", "address", "owner", "owner_address",
     "occupier", "electoral_area", "date_entered_register",
-    "valuation", "valuation_date",
+    "valuation", "valuation_date", "property_type",
 }
 
 
