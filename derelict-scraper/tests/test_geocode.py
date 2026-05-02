@@ -1,5 +1,4 @@
 import sys
-import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
@@ -8,6 +7,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import database
 import geocode
 
+
+# --- helpers ---
 
 def _seed_row(conn, ds_ref="DS001", address="1 Main St", council="TEST", lat=None, lng=None):
     conn.execute(
@@ -26,7 +27,19 @@ def _seed_row(conn, ds_ref="DS001", address="1 Main St", council="TEST", lat=Non
     conn.commit()
 
 
-def _mock_ok_response(lat=53.3, lng=-6.2):
+def _nominatim_ok(lat=53.3, lon=-6.2):
+    resp = MagicMock()
+    resp.json.return_value = [{"lat": str(lat), "lon": str(lon), "display_name": "Dublin"}]
+    return resp
+
+
+def _nominatim_empty():
+    resp = MagicMock()
+    resp.json.return_value = []
+    return resp
+
+
+def _google_ok(lat=53.3, lng=-6.2):
     resp = MagicMock()
     resp.json.return_value = {
         "status": "OK",
@@ -35,46 +48,121 @@ def _mock_ok_response(lat=53.3, lng=-6.2):
     return resp
 
 
-def _mock_zero_results():
-    resp = MagicMock()
-    resp.json.return_value = {"status": "ZERO_RESULTS", "results": []}
-    return resp
+# --- clean_address ---
+
+def test_clean_address_strips_newlines():
+    assert geocode.clean_address("38 Main St\nDublin 4") == "38 Main St, Dublin 4"
 
 
-def test_geocode_address_returns_lat_lng():
+def test_clean_address_removes_smart_quotes():
+    result = geocode.clean_address("‘Capri’ House, Dublin")
+    assert "‘" not in result
+    assert "’" not in result
+
+
+def test_clean_address_normalises_whitespace():
+    assert geocode.clean_address("1  Main   St") == "1 Main St"
+
+
+# --- extract_eircode ---
+
+def test_extract_eircode_finds_embedded_code():
+    assert geocode.extract_eircode("38 Russell Crescent\nD24 NN82") == "D24 NN82"
+
+
+def test_extract_eircode_handles_no_space():
+    assert geocode.extract_eircode("Some Address D6WXY12") == "D6W XY12"
+
+
+def test_extract_eircode_returns_none_when_absent():
+    assert geocode.extract_eircode("1 Main Street, Dublin") is None
+
+
+# --- geocode_with_nominatim ---
+
+def test_geocode_with_nominatim_returns_coords():
     session = MagicMock()
-    session.get.return_value = _mock_ok_response(53.3, -6.2)
-    lat, lng = geocode.geocode_address("1 Main St", session, "FAKE_KEY")
+    session.get.return_value = _nominatim_ok(53.3, -6.2)
+    lat, lng = geocode.geocode_with_nominatim("D24 NN82, Ireland", session)
     assert lat == 53.3
     assert lng == -6.2
-    call_params = session.get.call_args
-    assert "Ireland" in call_params.kwargs["params"]["address"]
 
 
-def test_geocode_address_zero_results_returns_none():
+def test_geocode_with_nominatim_returns_none_on_empty():
     session = MagicMock()
-    session.get.return_value = _mock_zero_results()
-    lat, lng = geocode.geocode_address("Nowhere", session, "FAKE_KEY")
-    assert lat is None
-    assert lng is None
+    session.get.return_value = _nominatim_empty()
+    lat, lng = geocode.geocode_with_nominatim("Nowhere", session)
+    assert lat is None and lng is None
 
+
+def test_geocode_with_nominatim_returns_none_on_error():
+    session = MagicMock()
+    session.get.side_effect = Exception("network error")
+    lat, lng = geocode.geocode_with_nominatim("test", session)
+    assert lat is None and lng is None
+
+
+# --- geocode_address strategy ---
+
+def test_geocode_address_uses_eircode_first(monkeypatch):
+    monkeypatch.setattr(geocode, "_NOMINATIM_DELAY", 0)
+    session = MagicMock()
+    session.get.return_value = _nominatim_ok(53.3, -6.2)
+
+    lat, lng = geocode.geocode_address("1 Main St\nD24 NN82", session, api_key=None)
+
+    # First call should be the Eircode query
+    first_call_params = session.get.call_args_list[0].kwargs["params"]["q"]
+    assert "D24 NN82" in first_call_params
+    assert lat == 53.3
+
+
+def test_geocode_address_falls_back_to_full_address_when_eircode_fails(monkeypatch):
+    monkeypatch.setattr(geocode, "_NOMINATIM_DELAY", 0)
+    session = MagicMock()
+    session.get.side_effect = [_nominatim_empty(), _nominatim_ok(53.3, -6.2)]
+
+    lat, lng = geocode.geocode_address("1 Main St\nD24 NN82", session, api_key=None)
+    assert lat == 53.3
+    assert session.get.call_count == 2
+
+
+def test_geocode_address_falls_back_to_google(monkeypatch):
+    monkeypatch.setattr(geocode, "_NOMINATIM_DELAY", 0)
+    monkeypatch.setattr(geocode, "_GOOGLE_DELAY", 0)
+    session = MagicMock()
+    # No Eircode in address → only 1 Nominatim call, then Google
+    session.get.side_effect = [_nominatim_empty(), _google_ok(53.3, -6.2)]
+
+    lat, lng = geocode.geocode_address("1 Main St", session, api_key="FAKE_KEY")
+    assert lat == 53.3
+
+
+def test_geocode_address_returns_none_when_all_fail(monkeypatch):
+    monkeypatch.setattr(geocode, "_NOMINATIM_DELAY", 0)
+    session = MagicMock()
+    session.get.return_value = _nominatim_empty()
+    lat, lng = geocode.geocode_address("Unparseable address ????", session, api_key=None)
+    assert lat is None and lng is None
+
+
+# --- run() integration ---
 
 def test_run_updates_null_rows(tmp_db, monkeypatch):
     monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "FAKE")
     monkeypatch.setattr(database, "DB_PATH", tmp_db)
+    monkeypatch.setattr(geocode, "_NOMINATIM_DELAY", 0)
     database.init_db()
     conn = database.get_connection()
     _seed_row(conn, "DS001", "1 Main St")
-    _seed_row(conn, "DS002", "2 Side St")
 
-    mock_session = MagicMock()
-    mock_session.get.return_value = _mock_ok_response(53.3, -6.2)
-
-    with patch("requests.Session", return_value=mock_session):
+    with patch("requests.Session") as mock_session_cls:
+        mock_session_cls.return_value.get.return_value = _nominatim_ok(53.3, -6.2)
         geocode.run()
 
-    rows = conn.execute("SELECT lat, lng FROM derelict_sites WHERE council='TEST'").fetchall()
-    assert all(r[0] == 53.3 and r[1] == -6.2 for r in rows)
+    row = conn.execute("SELECT lat, lng FROM derelict_sites WHERE ds_ref='DS001'").fetchone()
+    assert row[0] == 53.3
+    assert row[1] == -6.2
 
 
 def test_run_skips_already_geocoded(tmp_db, monkeypatch):
@@ -84,32 +172,38 @@ def test_run_skips_already_geocoded(tmp_db, monkeypatch):
     conn = database.get_connection()
     _seed_row(conn, "DS001", "1 Main St", lat=99.0, lng=99.0)
 
-    mock_session = MagicMock()
-    with patch("requests.Session", return_value=mock_session):
+    with patch("requests.Session") as mock_session_cls:
         geocode.run()
-
-    # Session.get should never have been called for an already-geocoded row
-    mock_session.get.assert_not_called()
+        mock_session_cls.return_value.get.assert_not_called()
 
 
 def test_run_handles_failed_geocode_gracefully(tmp_db, monkeypatch):
     monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "FAKE")
     monkeypatch.setattr(database, "DB_PATH", tmp_db)
+    monkeypatch.setattr(geocode, "_NOMINATIM_DELAY", 0)
     database.init_db()
     conn = database.get_connection()
     _seed_row(conn, "DS001", "Unparseable Address ????")
 
-    mock_session = MagicMock()
-    mock_session.get.side_effect = Exception("network error")
-
-    with patch("requests.Session", return_value=mock_session):
+    with patch("requests.Session") as mock_session_cls:
+        mock_session_cls.return_value.get.return_value = _nominatim_empty()
         geocode.run()  # must not raise
 
     row = conn.execute("SELECT lat FROM derelict_sites WHERE ds_ref='DS001'").fetchone()
-    assert row[0] is None  # lat stays NULL after failure
+    assert row[0] is None
 
 
-def test_run_exits_without_api_key(monkeypatch):
+def test_run_works_without_google_key(tmp_db, monkeypatch):
     monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
-    with pytest.raises(SystemExit):
-        geocode.run()
+    monkeypatch.setattr(database, "DB_PATH", tmp_db)
+    monkeypatch.setattr(geocode, "_NOMINATIM_DELAY", 0)
+    database.init_db()
+    conn = database.get_connection()
+    _seed_row(conn, "DS001", "1 Main St")
+
+    with patch("requests.Session") as mock_session_cls:
+        mock_session_cls.return_value.get.return_value = _nominatim_ok(53.3, -6.2)
+        geocode.run()  # should not raise even without Google key
+
+    row = conn.execute("SELECT lat FROM derelict_sites WHERE ds_ref='DS001'").fetchone()
+    assert row[0] == 53.3
