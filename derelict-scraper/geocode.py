@@ -27,6 +27,14 @@ _GOOGLE_DELAY = 0.05
 # Handles standard (D24 NN82) and D6W special case (D6W XY12)
 _EIRCODE_RE = re.compile(r'\b([A-Z][0-9][0-9W])\s*([A-Z0-9]{4})\b')
 
+# Ireland bounding box — any result outside this is rejected as garbage
+_IE_LAT_MIN, _IE_LAT_MAX = 51.3, 55.5
+_IE_LNG_MIN, _IE_LNG_MAX = -10.7, -5.5
+
+
+def _in_ireland(lat: float, lng: float) -> bool:
+    return _IE_LAT_MIN <= lat <= _IE_LAT_MAX and _IE_LNG_MIN <= lng <= _IE_LNG_MAX
+
 _SMART_QUOTES = str.maketrans({
     '‘': '', '’': '',  # ' '
     '“': '', '”': '',  # " "
@@ -92,24 +100,25 @@ def geocode_address(raw_address: str, session: requests.Session,
     eircode = extract_eircode(cleaned)
     address_no_eircode = _strip_eircode(cleaned) if eircode else cleaned
 
-    # 1. Eircode alone — most precise for Irish addresses
-    if eircode:
-        lat, lng = geocode_with_nominatim(f"{eircode}, Ireland", session)
-        time.sleep(_NOMINATIM_DELAY)
-        if lat is not None:
+    # 1. Google Maps with Eircode — Google understands Irish Eircodes; Nominatim does not
+    #    (Nominatim matches Eircode routing keys as road numbers, returning garbage Dublin coords)
+    if eircode and api_key:
+        lat, lng = geocode_with_google(eircode, session, api_key)
+        time.sleep(_GOOGLE_DELAY)
+        if lat is not None and _in_ireland(lat, lng):
             return lat, lng
 
-    # 2. Full cleaned address (eircode stripped to avoid confusing geocoder)
+    # 2. Nominatim with address text only (Eircode always stripped before sending here)
     lat, lng = geocode_with_nominatim(f"{address_no_eircode}, Ireland", session)
     time.sleep(_NOMINATIM_DELAY)
-    if lat is not None:
+    if lat is not None and _in_ireland(lat, lng):
         return lat, lng
 
-    # 3. Google Maps fallback
+    # 3. Google Maps with address text as final fallback
     if api_key:
         lat, lng = geocode_with_google(address_no_eircode, session, api_key)
         time.sleep(_GOOGLE_DELAY)
-        if lat is not None:
+        if lat is not None and _in_ireland(lat, lng):
             return lat, lng
 
     return None, None

@@ -104,38 +104,55 @@ def test_geocode_with_nominatim_returns_none_on_error():
 
 # --- geocode_address strategy ---
 
-def test_geocode_address_uses_eircode_first(monkeypatch):
+def test_geocode_address_uses_google_for_eircode(monkeypatch):
+    """Eircode must go to Google, not Nominatim — Nominatim returns garbage for Eircodes."""
+    monkeypatch.setattr(geocode, "_GOOGLE_DELAY", 0)
+    monkeypatch.setattr(geocode, "_NOMINATIM_DELAY", 0)
+    session = MagicMock()
+    session.get.return_value = _google_ok(53.5, -8.4)  # Mayo coords
+
+    lat, lng = geocode.geocode_address("Main St, Castlebar\nF23 NH56", session, api_key="FAKE")
+
+    # First call must be to Google with the Eircode
+    first_url = session.get.call_args_list[0].args[0]
+    first_params = session.get.call_args_list[0].kwargs["params"]
+    assert "maps.googleapis.com" in first_url
+    assert "F23 NH56" in first_params["address"]
+    assert lat == 53.5
+
+
+def test_geocode_address_falls_back_to_nominatim_when_no_eircode(monkeypatch):
     monkeypatch.setattr(geocode, "_NOMINATIM_DELAY", 0)
     session = MagicMock()
     session.get.return_value = _nominatim_ok(53.3, -6.2)
 
-    lat, lng = geocode.geocode_address("1 Main St\nD24 NN82", session, api_key=None)
+    lat, lng = geocode.geocode_address("1 Main St, Dublin", session, api_key=None)
 
-    # First call should be the Eircode query
-    first_call_params = session.get.call_args_list[0].kwargs["params"]["q"]
-    assert "D24 NN82" in first_call_params
+    first_url = session.get.call_args_list[0].args[0]
+    assert "nominatim" in first_url
     assert lat == 53.3
 
 
-def test_geocode_address_falls_back_to_full_address_when_eircode_fails(monkeypatch):
-    monkeypatch.setattr(geocode, "_NOMINATIM_DELAY", 0)
-    session = MagicMock()
-    session.get.side_effect = [_nominatim_empty(), _nominatim_ok(53.3, -6.2)]
-
-    lat, lng = geocode.geocode_address("1 Main St\nD24 NN82", session, api_key=None)
-    assert lat == 53.3
-    assert session.get.call_count == 2
-
-
-def test_geocode_address_falls_back_to_google(monkeypatch):
+def test_geocode_address_falls_back_to_google_when_nominatim_fails(monkeypatch):
     monkeypatch.setattr(geocode, "_NOMINATIM_DELAY", 0)
     monkeypatch.setattr(geocode, "_GOOGLE_DELAY", 0)
     session = MagicMock()
-    # No Eircode in address → only 1 Nominatim call, then Google
     session.get.side_effect = [_nominatim_empty(), _google_ok(53.3, -6.2)]
 
     lat, lng = geocode.geocode_address("1 Main St", session, api_key="FAKE_KEY")
     assert lat == 53.3
+
+
+def test_geocode_address_rejects_result_outside_ireland(monkeypatch):
+    monkeypatch.setattr(geocode, "_NOMINATIM_DELAY", 0)
+    session = MagicMock()
+    # Nominatim returns London coords — should be rejected
+    resp = MagicMock()
+    resp.json.return_value = [{"lat": "51.5", "lon": "-0.1", "display_name": "London"}]
+    session.get.return_value = resp
+
+    lat, lng = geocode.geocode_address("1 Main St", session, api_key=None)
+    assert lat is None and lng is None
 
 
 def test_geocode_address_returns_none_when_all_fail(monkeypatch):
