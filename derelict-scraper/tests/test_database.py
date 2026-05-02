@@ -32,27 +32,63 @@ def test_replace_council_inserts_rows(tmp_db, monkeypatch):
     assert result[0] == "1 Main St"
 
 
-def test_replace_council_deletes_old_rows(tmp_db, monkeypatch):
+def test_replace_council_upserts_existing_row(tmp_db, monkeypatch):
     monkeypatch.setattr(database, "DB_PATH", tmp_db)
     database.init_db()
-    rows_v1 = [
+    row_v1 = [
         {"council": "TEST", "ds_ref": "DS001", "reg_no": "R1", "address": "Old Address",
          "owner": None, "owner_address": None, "occupier": None, "electoral_area": None,
          "date_entered_register": None, "valuation": None, "valuation_date": None,
          "days_on_register": None, "last_updated": None, "raw_source_file": "v1.xlsx"},
     ]
-    rows_v2 = [
-        {"council": "TEST", "ds_ref": "DS999", "reg_no": "R2", "address": "New Address",
+    row_v2 = [
+        {"council": "TEST", "ds_ref": "DS001", "reg_no": "R1", "address": "Updated Address",
          "owner": None, "owner_address": None, "occupier": None, "electoral_area": None,
          "date_entered_register": None, "valuation": None, "valuation_date": None,
          "days_on_register": None, "last_updated": None, "raw_source_file": "v2.xlsx"},
     ]
     conn = database.get_connection()
-    database.replace_council(conn, "TEST", rows_v1, "v1.xlsx")
-    database.replace_council(conn, "TEST", rows_v2, "v2.xlsx")
-    all_rows = conn.execute("SELECT ds_ref FROM derelict_sites WHERE council='TEST'").fetchall()
+    database.replace_council(conn, "TEST", row_v1, "v1.xlsx")
+    database.replace_council(conn, "TEST", row_v2, "v2.xlsx")
+    all_rows = conn.execute("SELECT ds_ref, address FROM derelict_sites WHERE council='TEST'").fetchall()
     assert len(all_rows) == 1
-    assert all_rows[0][0] == "DS999"
+    assert all_rows[0][1] == "Updated Address"
+
+
+def test_replace_council_preserves_lat_lng(tmp_db, monkeypatch):
+    monkeypatch.setattr(database, "DB_PATH", tmp_db)
+    database.init_db()
+    rows = [
+        {"council": "TEST", "ds_ref": "DS001", "reg_no": "R1", "address": "Old Address",
+         "owner": None, "owner_address": None, "occupier": None, "electoral_area": None,
+         "date_entered_register": None, "valuation": None, "valuation_date": None,
+         "days_on_register": None, "last_updated": None, "raw_source_file": "v1.xlsx"},
+    ]
+    conn = database.get_connection()
+    database.replace_council(conn, "TEST", rows, "v1.xlsx")
+    # Manually set geocoordinates as geocode.py would
+    conn.execute("UPDATE derelict_sites SET lat=53.3, lng=-6.2 WHERE council='TEST' AND ds_ref='DS001'")
+    conn.commit()
+    # Run replace_council again with updated address
+    rows_v2 = [
+        {"council": "TEST", "ds_ref": "DS001", "reg_no": "R1", "address": "Updated Address",
+         "owner": None, "owner_address": None, "occupier": None, "electoral_area": None,
+         "date_entered_register": None, "valuation": None, "valuation_date": None,
+         "days_on_register": None, "last_updated": None, "raw_source_file": "v2.xlsx"},
+    ]
+    database.replace_council(conn, "TEST", rows_v2, "v2.xlsx")
+    result = conn.execute("SELECT lat, lng FROM derelict_sites WHERE council='TEST' AND ds_ref='DS001'").fetchone()
+    assert result[0] == 53.3
+    assert result[1] == -6.2
+
+
+def test_init_db_has_lat_lng_columns(tmp_db, monkeypatch):
+    monkeypatch.setattr(database, "DB_PATH", tmp_db)
+    database.init_db()
+    conn = database.get_connection()
+    col_names = {row[1] for row in conn.execute("PRAGMA table_info(derelict_sites)").fetchall()}
+    assert "lat" in col_names
+    assert "lng" in col_names
 
 
 def test_log_scrape_inserts_record(tmp_db, monkeypatch):

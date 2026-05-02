@@ -32,6 +32,8 @@ def init_db() -> None:
                 days_on_register       INTEGER,
                 last_updated           TEXT,
                 raw_source_file        TEXT,
+                lat                    REAL,
+                lng                    REAL,
                 UNIQUE(council, ds_ref)
             );
 
@@ -45,21 +47,38 @@ def init_db() -> None:
                 error_msg      TEXT
             );
         """)
+        for col in ("lat", "lng"):
+            try:
+                conn.execute(f"ALTER TABLE derelict_sites ADD COLUMN {col} REAL")
+            except Exception:
+                pass
 
 
 def replace_council(conn: sqlite3.Connection, council_code: str,
                     rows: list, source_file: str) -> int:
-    with conn:
-        conn.execute("DELETE FROM derelict_sites WHERE council = ?", (council_code,))
-        if rows:
+    if rows:
+        with conn:
             conn.executemany(
-                """INSERT OR IGNORE INTO derelict_sites
+                """INSERT INTO derelict_sites
                    (council, ds_ref, reg_no, address, owner, owner_address, occupier,
                     electoral_area, date_entered_register, valuation, valuation_date,
                     days_on_register, last_updated, raw_source_file)
                    VALUES (:council, :ds_ref, :reg_no, :address, :owner, :owner_address,
                            :occupier, :electoral_area, :date_entered_register, :valuation,
-                           :valuation_date, :days_on_register, :last_updated, :raw_source_file)""",
+                           :valuation_date, :days_on_register, :last_updated, :raw_source_file)
+                   ON CONFLICT(council, ds_ref) DO UPDATE SET
+                       reg_no                = excluded.reg_no,
+                       address               = excluded.address,
+                       owner                 = excluded.owner,
+                       owner_address         = excluded.owner_address,
+                       occupier              = excluded.occupier,
+                       electoral_area        = excluded.electoral_area,
+                       date_entered_register = excluded.date_entered_register,
+                       valuation             = excluded.valuation,
+                       valuation_date        = excluded.valuation_date,
+                       days_on_register      = excluded.days_on_register,
+                       last_updated          = excluded.last_updated,
+                       raw_source_file       = excluded.raw_source_file""",
                 rows,
             )
     return len(rows)
