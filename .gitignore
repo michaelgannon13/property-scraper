@@ -6,6 +6,7 @@ worktrees/
 derelict-scraper/data/*
 !derelict-scraper/data/derelict_sites.db
 derelict-scraper/logs/
+derelict-scraper/*.db
 derelict-scraper/*.db-shm
 derelict-scraper/*.db-wal
 
