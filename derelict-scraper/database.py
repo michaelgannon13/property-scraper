@@ -32,6 +32,17 @@ _UPSERT_HEADERS = {
 }
 
 
+# Derelict Sites Levy rates by council (% of market value per year).
+# Minimum is 3% under the Derelict Sites Act 1990. DCC charges 7%.
+# All others default to 3% unless confirmed otherwise.
+_LEVY_RATES = {
+    "DCC":  0.07,
+    "SDCC": 0.03,
+    "DLR":  0.03,
+    "FCC":  0.03,
+}
+_DEFAULT_LEVY_RATE = 0.03
+
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -42,6 +53,14 @@ def _safe_date(value) -> str | None:
     if _ISO_DATE_RE.match(s):
         return s
     return None
+
+
+def _estimated_levy(prop: dict):
+    valuation = prop.get("valuation")
+    if not valuation:
+        return None
+    rate = _LEVY_RATES.get(prop.get("council"), _DEFAULT_LEVY_RATE)
+    return round(valuation * rate, 2)
 
 
 def _build_payload(prop: dict) -> dict:
@@ -61,8 +80,9 @@ def _build_payload(prop: dict) -> dict:
         "building_type":      prop.get("property_type"),
         "latitude":           prop.get("lat"),
         "longitude":          prop.get("lng"),
-        "reg_no":             prop.get("reg_no"),
-        "raw_source_file":    prop.get("raw_source_file"),
+        "reg_no":               prop.get("reg_no"),
+        "raw_source_file":      prop.get("raw_source_file"),
+        "estimated_annual_levy": _estimated_levy(prop),
     }
 
 
