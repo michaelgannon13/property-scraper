@@ -220,3 +220,57 @@ Google Maps API key has no IP restrictions (was needed to fix IPv6 geocoding iss
 2. GitHub Actions nightly cron (scrape → geocode → PPR match → sync)
 3. PPR scraper
 4. Enable more councils
+
+---
+
+## Session: 2026-05-03 (evening)
+
+### What we worked on
+- Built the full Supabase publish pipeline using the `upsert_property` Edge Function
+- Added `--publish` and `--publish-only` flags to `main.py`
+- Ran multiple publish cycles, diagnosed and fixed all errors
+- Set up GitHub Actions nightly cron at 2am Irish time
+- Fixed git remote (code was pushing to wrong repo: `youtube` instead of `property-scraper`)
+- Force-pushed `feature/derelict-scraper` as new `main` in `property-scraper` (old main had stale YouTube tutorial content)
+
+### Architecture decision: SQLite as staging layer
+- **Decision**: Keep SQLite as local staging DB; publish to Supabase as a separate step after geocoding
+- **Why**: Geocoding preserves lat/lng across re-scrapes — if we bypass SQLite, every nightly run would re-geocode 2,000 rows from scratch (~30 min + Google Maps API cost)
+- **Pipeline**: `python main.py --geocode --publish` — scrape → SQLite → geocode → push to Supabase
+- **`--publish-only`**: skips scraping, pushes existing SQLite rows directly — useful for testing and one-off fixes
+
+### Problems hit and solved
+- **Duplicate rows (3,937 instead of ~2,000)**: Supabase table had 2,008 pre-existing Lovable seed rows with `register_ref = NULL`. Edge Function's `ON CONFLICT` never matched them → everything inserted as new. Fix: deleted NULL rows, added `UNIQUE(council_area, register_ref)` constraint, updated Edge Function to use `onConflict`.
+- **Constraint creation failed silently**: First `ALTER TABLE` failed because a partial index with the same name already existed. Had to drop the partial index first, then create the real unique constraint.
+- **500 errors on date fields**: Some rows had `date_entered_register` values like `"2015"`, `"Unknown"`, or PDF-parsing garbage. Supabase `date` column rejected them. Fix: `_safe_date()` in `database.py` validates and only sends `YYYY-MM-DD` format strings.
+- **SDCC datetime format**: SDCC XLSX stores dates as `"2014-07-29 00:00:00"` (with time component). `_safe_date()` rejected these, sending all SDCC dates as null. Fix: `str(value).strip()[:10]` strips the time part before validating.
+- **KILDARE null address rows**: Kildare PDF parser produced rows where `ds_ref` is a date (`07/09/2023`) and address is null — bad PDF parse artefacts. Supabase NOT NULL on `address` rejected them. Fix: skip rows missing `address` or `ds_ref` in `upsert_property()`.
+- **KILKENNY null ds_ref rows**: Same issue — rows with no `ds_ref` rejected by Edge Function (requires `council_reference`). Covered by same skip guard.
+- **Wrong git remote**: All commits had been pushed to `michaelgannon13/youtube` instead of `michaelgannon13/property-scraper`. Fixed by updating remote URL; deleted stale branch from youtube repo.
+- **GitHub Actions billing lock**: Repo was private → free minutes exhausted or billing not set up. Fix: made repo public (free unlimited minutes for public repos).
+
+### Final publish result
+- **1,961 properties** in Supabase `properties_large`, clean and deduplicated
+- **81 intentional skips** (no address or no ds_ref — bad PDF rows, not fixable without better source data)
+- Upsert confirmed working: reruns show `0 new | N updated`
+
+### Decisions NOT made / deferred
+- **`sync.py` separate script**: Originally planned; replaced by Edge Function approach — no separate sync needed
+- **Remove SQLite entirely**: Not done — geocoding pipeline depends on it as a staging store
+- **Land Registry owner lookup**: Still deferred — €5-25/folio, not viable at scale
+- **More councils (CLARE, KERRY, GALWAY county)**: Deferred — volume gain only, no new data types
+
+### GitHub Actions nightly cron
+- Workflow: `.github/workflows/nightly-scrape.yml`
+- Schedule: `0 1 * * *` (1am UTC = 2am Irish summer time)
+- Steps: checkout → install deps → `python main.py --geocode --publish` → commit updated SQLite DB back to repo
+- SQLite committed back to repo so lat/lng persists across runs without re-geocoding
+- Requires 4 GitHub Secrets: `GOOGLE_MAPS_API_KEY`, `SUPABASE_ANON_KEY`, `SUPABASE_UPSERT_URL`, `INGEST_API_KEY`
+- **Not yet tested in CI** — GitHub billing lock prevented first manual trigger. Pending billing fix.
+
+### What's next
+1. **Immediate**: Resolve GitHub billing lock → trigger manual workflow run to verify CI pipeline
+2. **PPR scraper**: Download PPR-ALL.csv (~600k rows), fuzzy-match by county against derelict addresses, store `last_sale_price` + `last_sale_date` — fills "Last PPR sale" in UI and enables deal snapshot calculations (GDV, all-in cost, yield, equity)
+3. **Deal snapshot**: Once PPR data is in, calculate Est. GDV (PPR median by county/type), refurb cost (Buildcost.ie rate × sqm estimate), gross yield (RTB average rent), equity created
+4. **Enable more councils**: CLARE, KERRY, GALWAY county
+5. **RTB rents**: Quarterly CSV from RTB for yield calculations
