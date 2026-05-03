@@ -1,8 +1,79 @@
+import os
+import re
 import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone
 
+import requests as _requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
 DB_PATH = Path("data/derelict_sites.db")
+
+_EDGE_FUNCTION_URL = os.getenv(
+    "SUPABASE_UPSERT_URL",
+    "https://wpgrcieidaalkkgococi.supabase.co/functions/v1/upsert_property",
+)
+_ANON_KEY = os.getenv(
+    "SUPABASE_ANON_KEY",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndwZ3JjaWVpZGFhbGtrZ29jb2NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzODk0NzksImV4cCI6MjA5MDk2NTQ3OX0.W4lD56ON6bV3YKytEaaamxHcWA1at21oVlLxY1rZBKo",
+)
+_INGEST_API_KEY = os.getenv(
+    "INGEST_API_KEY",
+    "@u#9XQr!TNdV&G%rQIqivfh!QMWvc*UIDNrwNT0L",
+)
+
+_UPSERT_HEADERS = {
+    "apikey": _ANON_KEY,
+    "Authorization": f"Bearer {_ANON_KEY}",
+    "x-api-key": _INGEST_API_KEY,
+    "Content-Type": "application/json",
+}
+
+
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _safe_date(value) -> str | None:
+    if not value:
+        return None
+    s = str(value).strip()[:10]
+    if _ISO_DATE_RE.match(s):
+        return s
+    return None
+
+
+def _build_payload(prop: dict) -> dict:
+    """Map local SQLite field names to the Edge Function's expected field names."""
+    return {
+        "county":             prop.get("council"),
+        "council_reference":  prop.get("ds_ref"),
+        "address":            prop.get("address"),
+        "owner":              prop.get("owner"),
+        "owner_address":      prop.get("owner_address"),
+        "occupier":           prop.get("occupier"),
+        "electoral_area":     prop.get("electoral_area"),
+        "date_registered":    _safe_date(prop.get("date_entered_register")),
+        "valuation":          prop.get("valuation"),
+        "valuation_date":     _safe_date(prop.get("valuation_date")),
+        "days_on_register":   prop.get("days_on_register"),
+        "building_type":      prop.get("property_type"),
+        "latitude":           prop.get("lat"),
+        "longitude":          prop.get("lng"),
+        "reg_no":             prop.get("reg_no"),
+        "raw_source_file":    prop.get("raw_source_file"),
+    }
+
+
+def upsert_property(prop: dict) -> dict:
+    """POST a single property to the Supabase upsert_property Edge Function."""
+    if not prop.get("address") or not prop.get("ds_ref"):
+        raise ValueError(f"skipped: missing {'address' if not prop.get('address') else 'ds_ref'}")
+    payload = _build_payload(prop)
+    resp = _requests.post(_EDGE_FUNCTION_URL, json=payload, headers=_UPSERT_HEADERS, timeout=15)
+    resp.raise_for_status()
+    return resp.json()
 
 
 def get_connection() -> sqlite3.Connection:

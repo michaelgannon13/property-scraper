@@ -97,16 +97,44 @@ def export_data(fmt: str, run_id_str: str) -> Path:
     return dest
 
 
+def publish_to_supabase(log) -> None:
+    conn = database.get_connection()
+    rows = conn.execute("SELECT * FROM derelict_sites").fetchall()
+    total = len(rows)
+    new_count = updated_count = error_count = 0
+    print(f"\nPublishing {total:,} properties to Supabase...\n")
+    for row in tqdm(rows, desc="Publishing", unit="property"):
+        prop = dict(row)
+        try:
+            resp = database.upsert_property(prop)
+            if resp.get("was_new"):
+                new_count += 1
+            else:
+                updated_count += 1
+        except Exception as exc:
+            error_count += 1
+            log.warning("publish failed for %s/%s — %s",
+                        prop.get("council"), prop.get("ds_ref") or prop.get("address"), exc)
+    print(f"Published: {new_count} new │ {updated_count} updated │ {error_count} errors")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Irish Derelict Sites Scraper")
     parser.add_argument("--councils", help="Comma-separated council codes (e.g. DCC,SDCC)")
     parser.add_argument("--export", choices=["csv", "excel"], help="Export format after run")
     parser.add_argument("--dry-run", action="store_true", help="Parse only, no DB writes")
     parser.add_argument("--geocode", action="store_true", help="Geocode new addresses after scraping")
+    parser.add_argument("--publish", action="store_true", help="Push all rows to Supabase via Edge Function after scraping/geocoding")
+    parser.add_argument("--publish-only", action="store_true", help="Skip scraping — just push existing SQLite rows to Supabase")
     args = parser.parse_args()
 
     rid = utils.run_id()
     log = utils.setup_logging(rid)
+
+    if args.publish_only:
+        database.init_db()
+        publish_to_supabase(log)
+        sys.exit(0)
 
     if not args.dry_run:
         database.init_db()
@@ -154,6 +182,9 @@ def main():
     if args.geocode and not args.dry_run:
         import geocode
         geocode.run()
+
+    if args.publish and not args.dry_run:
+        publish_to_supabase(log)
 
     if args.export:
         dest = export_data(args.export, rid)
