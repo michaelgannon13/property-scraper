@@ -51,7 +51,8 @@ def _safe_date(value) -> str | None:
         return None
     s = str(value).strip()[:10]
     if _ISO_DATE_RE.match(s):
-        return s
+        if s <= datetime.now(timezone.utc).strftime("%Y-%m-%d"):
+            return s
     return None
 
 
