@@ -274,3 +274,41 @@ Google Maps API key has no IP restrictions (was needed to fix IPv6 geocoding iss
 3. **Deal snapshot**: Once PPR data is in, calculate Est. GDV (PPR median by county/type), refurb cost (Buildcost.ie rate × sqm estimate), gross yield (RTB average rent), equity created
 4. **Enable more councils**: CLARE, KERRY, GALWAY county
 5. **RTB rents**: Quarterly CSV from RTB for yield calculations
+
+---
+
+## Session: 2026-05-04
+
+### What we worked on
+- Audited all enabled councils for hardcoded `direct_url` vs. auto-discovery from page
+- Enabled TIPPERARY (was disabled) — found their register at new page URL as an XLSX
+- Updated GCC (Galway City) to new page URL and removed hardcoded PDF link
+- Fixed DONEGAL — was pointing at wrong/old page URL; correct page is `/en/services/planning/regeneration-and-development/vacancy-and-dereliction/derelict-sites`, Excel link scrapes correctly from static HTML
+- Removed `direct_url` from DONEGAL, GCC, TIPPERARY — all three now auto-discover the latest file from their page on every run
+- Scraped and published 82 new properties to Supabase (76 TIPPERARY + 6 GCC updates)
+- Fixed geocoding not running before publish — new properties had no lat/lng so maps/streetview were broken
+
+### Decisions made
+- **All councils must auto-discover — no hardcoded file URLs** — rationale: registers get updated quarterly, hardcoded URLs silently serve stale data. Every council now visits its page and scores links to find the latest file.
+- **`direct_url` is only acceptable for live endpoints** (CCC html page = always current; WATERFORD ArcGIS API = live query). Static file URLs must never be hardcoded.
+- **Geocoding is now always part of publish** — `publish_to_supabase()` calls `geocode.run()` first. Prevents new properties appearing in Supabase without coordinates. Also deduplicated: `--geocode --publish` no longer geocodes twice.
+- **Tipperary duplicates: skip, don't fix** — 35 of 111 TIPPERARY rows have duplicate `SiteID` values in their source register (Tipperary's own data quality issue). SQLite UNIQUE constraint drops them silently; 76 unique rows inserted. Not our problem to fix.
+
+### Problems hit and solved
+- **DONEGAL wrong page URL** — old config pointed at `/services/planning/derelictsites/` (no `/en/`, wrong path). The Excel link doesn't appear on that page. Correct page found via user, link confirmed in static HTML at right path.
+- **GCC base64-encoded download URL** — Galway City's download links use `?r=/download&path=<base64>` format. Worried link scorer wouldn't match it. Confirmed it scores correctly: link text "Derelict Sites Register - 23rd April 2026" gives "register" + "derelict" + "sites" + year = score 7. Act link only scores 4. Used `url_contains: "gccfiles"` as extra safety.
+- **New properties missing lat/lng** — publish ran before geocode, so TIPPERARY/GCC rows hit Supabase with NULL coordinates. Fix: geocode always runs inside `publish_to_supabase()` before the Supabase loop.
+
+### Data state after this session
+- **2,124 properties in SQLite** (was 2,042)
+- **2,124 published to Supabase** (82 new, 1,960 updated, 82 errors on rows missing address/ds_ref)
+- TIPPERARY: 76 properties (new)
+- GCC: 114 properties (was 108, picked up 6 from newer April 23 register)
+- DONEGAL: 10 (unchanged, just fixed page URL)
+- New properties need geocoding — `--publish-only` needs to be re-run after geocoding completes
+
+### What's next
+1. Re-run `--publish-only` after geocoding new TIPPERARY/GCC rows to push coordinates
+2. Resolve GitHub billing lock → test nightly cron
+3. PPR scraper for last sale price enrichment
+4. Enable more councils (CLARE, KERRY, GALWAY county)
