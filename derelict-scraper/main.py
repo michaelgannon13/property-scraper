@@ -98,6 +98,8 @@ def export_data(fmt: str, run_id_str: str) -> Path:
 
 
 def publish_to_supabase(log) -> None:
+    import geocode
+    geocode.run()
     conn = database.get_connection()
     rows = conn.execute("SELECT * FROM derelict_sites").fetchall()
     total = len(rows)
@@ -179,7 +181,7 @@ def main():
         print(f"Errors: {', '.join(r['code'] for r in errors)}")
         print(f"See logs/{rid}.log for details")
 
-    if args.geocode and not args.dry_run:
+    if args.geocode and not args.publish and not args.dry_run:
         import geocode
         geocode.run()
 
