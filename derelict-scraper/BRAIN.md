@@ -312,3 +312,33 @@ Google Maps API key has no IP restrictions (was needed to fix IPv6 geocoding iss
 2. Resolve GitHub billing lock → test nightly cron
 3. PPR scraper for last sale price enrichment
 4. Enable more councils (CLARE, KERRY, GALWAY county)
+
+---
+
+## Session: 2026-05-04 (continued)
+
+### What we worked on
+- Completed geocoding + publish of new TIPPERARY/GCC rows (all 76 Tipperary properties now have lat/lng in Supabase)
+- Fixed a bug where `-657 days ago` was showing for 80 McHale Road, Castlebar, Co Mayo — Mayo's register had a typo date of `2028-02-20`
+- Investigated all 7 disabled councils to determine if any can be enabled
+- Audited entire disabled council list — confirmed none are currently actionable
+
+### Decisions made
+- **`_safe_date()` now rejects future dates** — any date beyond today is treated as NULL. Rationale: source data typos (e.g. Mayo's 2028 date) should never show as negative days on register in the UI. One-line fix: `if s <= datetime.now(timezone.utc).strftime("%Y-%m-%d")`.
+- **All 7 disabled councils remain disabled** — investigated each; none publish their register online. CLARE, LONGFORD, WESTMEATH: in-office/email only. KERRY, CAVAN: no register page exists. GALWAY (county): actively blocks bots. SLIGO: SSL error + no file. These are legal obligations the councils meet by maintaining a physical register — they're not required to publish it digitally.
+- **`--publish-only` first run was killed by `| head -5` pipe** — lesson: never pipe publish command through `head`. `tail` is safe (reads all input), `head` causes SIGPIPE and kills the writer mid-run.
+
+### Problems hit and solved
+- **New Tipperary/GCC properties had NULL lat/lng in Supabase** — first `--publish-only` was piped through `head -5`, which killed the process after geocoding completed but before the Supabase push loop ran. Re-ran without pipe — all coordinates pushed correctly.
+- **Mayo McHale Road showing "-657 days ago"** — date in source register was `2028-02-20` (typo, probably meant 2024 or 2022). Fixed in `_safe_date()` with a future-date guard. Re-scraped Mayo and re-published.
+
+### Council coverage (final state)
+- **24 councils enabled, 2,124 properties** in SQLite and Supabase
+- **7 councils permanently disabled** — no public register available online (not a scraping problem, a council policy problem)
+- No further councils can be added without the councils themselves publishing their registers
+
+### What's next
+1. Resolve GitHub billing lock → trigger manual workflow run to verify nightly cron
+2. PPR scraper for last sale price enrichment
+3. Deal snapshot calculations (GDV, refurb cost, yield, equity)
+4. RTB rents data for yield calculations
