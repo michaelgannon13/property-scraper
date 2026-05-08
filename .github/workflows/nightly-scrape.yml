@@ -36,6 +36,7 @@ jobs:
           SUPABASE_UPSERT_URL: ${{ secrets.SUPABASE_UPSERT_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           INGEST_API_KEY: ${{ secrets.INGEST_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: python main.py --geocode --publish
 
       - name: Commit updated database

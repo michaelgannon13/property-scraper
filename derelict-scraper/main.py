@@ -197,6 +197,10 @@ def main():
         dest = export_data(args.export, rid)
         print(f"Exported → {dest}")
 
+    if not args.dry_run:
+        import notify
+        notify.send(results, run_date=rid[:10])
+
     sys.exit(0 if not errors else 1)
 
 

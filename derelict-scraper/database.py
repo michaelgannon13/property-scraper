@@ -131,6 +131,7 @@ def init_db() -> None:
                 property_type          TEXT,
                 floor_area_m2          REAL,
                 floor_area_source      TEXT,
+                first_seen             TEXT,
                 UNIQUE(council, ds_ref)
             );
 
@@ -145,7 +146,8 @@ def init_db() -> None:
             );
         """)
         for col, coltype in (("lat", "REAL"), ("lng", "REAL"), ("property_type", "TEXT"),
-                             ("floor_area_m2", "REAL"), ("floor_area_source", "TEXT")):
+                             ("floor_area_m2", "REAL"), ("floor_area_source", "TEXT"),
+                             ("first_seen", "TEXT")):
             try:
                 conn.execute(f"ALTER TABLE derelict_sites ADD COLUMN {col} {coltype}")
             except Exception:
@@ -160,11 +162,11 @@ def replace_council(conn: sqlite3.Connection, council_code: str,
                 """INSERT INTO derelict_sites
                    (council, ds_ref, reg_no, address, owner, owner_address, occupier,
                     electoral_area, date_entered_register, valuation, valuation_date,
-                    days_on_register, last_updated, raw_source_file, property_type)
+                    days_on_register, last_updated, raw_source_file, property_type, first_seen)
                    VALUES (:council, :ds_ref, :reg_no, :address, :owner, :owner_address,
                            :occupier, :electoral_area, :date_entered_register, :valuation,
                            :valuation_date, :days_on_register, :last_updated, :raw_source_file,
-                           :property_type)
+                           :property_type, DATE('now'))
                    ON CONFLICT(council, ds_ref) DO UPDATE SET
                        reg_no                = excluded.reg_no,
                        address               = excluded.address,
@@ -182,6 +184,33 @@ def replace_council(conn: sqlite3.Connection, council_code: str,
                 rows,
             )
     return len(rows)
+
+
+def get_changes_since(date_str: str, successful_councils: list) -> dict:
+    """Return new and removed properties for today's run."""
+    conn = get_connection()
+    today = date_str
+
+    new_props = conn.execute(
+        "SELECT council, address, property_type, valuation FROM derelict_sites WHERE first_seen = ?",
+        (today,),
+    ).fetchall()
+
+    removed_props = []
+    if successful_councils:
+        placeholders = ",".join("?" * len(successful_councils))
+        removed_props = conn.execute(
+            f"""SELECT council, address, property_type, valuation
+                FROM derelict_sites
+                WHERE council IN ({placeholders})
+                AND (last_updated < ? OR last_updated IS NULL)""",
+            (*successful_councils, today),
+        ).fetchall()
+
+    return {
+        "new":     [dict(r) for r in new_props],
+        "removed": [dict(r) for r in removed_props],
+    }
 
 
 def log_scrape(council: str, status: str, rows_inserted: int = 0,
