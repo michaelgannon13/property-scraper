@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r derelict-scraper/requirements.txt
 
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
       - name: Scrape, geocode and publish
         working-directory: derelict-scraper
         env:
