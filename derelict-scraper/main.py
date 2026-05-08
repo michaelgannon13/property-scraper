@@ -128,6 +128,7 @@ def main():
     parser.add_argument("--geocode", action="store_true", help="Geocode new addresses after scraping")
     parser.add_argument("--publish", action="store_true", help="Push all rows to Supabase via Edge Function after scraping/geocoding")
     parser.add_argument("--publish-only", action="store_true", help="Skip scraping — just push existing SQLite rows to Supabase")
+    parser.add_argument("--floor-area", action="store_true", help="Enrich properties with estimated floor area from Microsoft Building Footprints")
     args = parser.parse_args()
 
     rid = utils.run_id()
@@ -184,6 +185,10 @@ def main():
     if args.geocode and not args.publish and not args.dry_run:
         import geocode
         geocode.run()
+
+    if args.floor_area and not args.dry_run:
+        import floor_area
+        floor_area.run()
 
     if args.publish and not args.dry_run:
         publish_to_supabase(log)

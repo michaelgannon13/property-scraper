@@ -10,3 +10,5 @@ tqdm==4.66.4
 pytest==8.2.2
 pytest-mock==3.14.0
 playwright
+shapely>=2.0
+pyproj>=3.6
