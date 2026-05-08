@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import database
 
 _RESEND_URL   = "https://api.resend.com/emails"
-_FROM_ADDRESS = "updates@revive-ireland.com"
+_FROM_ADDRESS = "onboarding@resend.dev"
 _TO_ADDRESS   = "michael.gannon13@gmail.com"
 
 
