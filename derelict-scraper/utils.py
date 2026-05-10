@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import re
 from datetime import datetime, date, timezone
@@ -157,8 +158,9 @@ _HEADER_PATTERNS = re.compile(
 
 
 def _is_header_row(entry: dict) -> bool:
-    address = str(entry.get("address") or "").strip()
-    ds_ref = str(entry.get("ds_ref") or "").strip()
+    # Normalize whitespace so multi-line PDF strings like "Address of\nOwner" still match
+    address = re.sub(r'\s+', ' ', str(entry.get("address") or "").strip())
+    ds_ref = re.sub(r'\s+', ' ', str(entry.get("ds_ref") or "").strip())
     return bool(_HEADER_PATTERNS.match(address) or _HEADER_PATTERNS.match(ds_ref))
 
 
@@ -178,6 +180,15 @@ def normalise_dataframe(df, council_code: str, source_file: str) -> list:
 
         if _is_header_row(entry):
             continue
+
+        # Drop rows with no address — they can't be geocoded or published
+        if not entry.get("address"):
+            continue
+
+        # Generate stable synthetic ds_ref for councils that don't provide one
+        if entry["ds_ref"] is None:
+            normalized = re.sub(r'\s+', ' ', str(entry["address"]).strip().lower())
+            entry["ds_ref"] = "ADDR-" + hashlib.md5(normalized.encode()).hexdigest()[:8].upper()
 
         entry["date_entered_register"] = parse_date(entry["date_entered_register"])
         entry["valuation_date"] = parse_date(entry["valuation_date"])

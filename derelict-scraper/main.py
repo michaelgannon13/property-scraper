@@ -34,7 +34,7 @@ def dispatch_parser(filepath: Path, file_type: str, column_map: dict):
 def process_council(cfg: dict, run_id_str: str, session: requests.Session,
                     dry_run: bool, log) -> dict:
     code = cfg["council_code"]
-    result = {"code": code, "status": "error", "rows": 0, "error": ""}
+    result = {"code": code, "status": "error", "rows": 0, "error": "", "removed_refs": []}
     _orig_verify = session.verify
     session.verify = cfg.get("ssl_verify", True)
     try:
@@ -59,9 +59,10 @@ def process_council(cfg: dict, run_id_str: str, session: requests.Session,
 
         if not dry_run:
             conn = database.get_connection()
-            database.replace_council(conn, code, rows, source_name)
-            database.log_scrape(code, "ok", rows_inserted=len(rows),
+            count, removed_refs = database.replace_council(conn, code, rows, source_name)
+            database.log_scrape(code, "ok", rows_inserted=count,
                                 source_file=source_name)
+            result["removed_refs"] = removed_refs
 
         result["status"] = "ok"
         result["rows"] = len(rows)
@@ -97,7 +98,7 @@ def export_data(fmt: str, run_id_str: str) -> Path:
     return dest
 
 
-def publish_to_supabase(log) -> None:
+def publish_to_supabase(log, removals: dict = None) -> None:
     import geocode
     geocode.run()
     conn = database.get_connection()
@@ -118,6 +119,15 @@ def publish_to_supabase(log) -> None:
             log.warning("publish failed for %s/%s — %s",
                         prop.get("council"), prop.get("ds_ref") or prop.get("address"), exc)
     print(f"Published: {new_count} new │ {updated_count} updated │ {error_count} errors")
+
+    if removals:
+        total_deleted = 0
+        for council, refs in removals.items():
+            deleted = database.delete_from_supabase(council, refs)
+            total_deleted += deleted
+            if deleted:
+                log.info("Deleted %d removed properties from Supabase for %s", deleted, council)
+        print(f"Deleted from Supabase: {total_deleted} removed properties")
 
 
 def main():
@@ -186,7 +196,8 @@ def main():
         geocode.run()
 
     if args.publish and not args.dry_run:
-        publish_to_supabase(log)
+        removals = {r["code"]: r["removed_refs"] for r in ok if r.get("removed_refs")}
+        publish_to_supabase(log, removals)
 
     if args.export:
         dest = export_data(args.export, rid)
