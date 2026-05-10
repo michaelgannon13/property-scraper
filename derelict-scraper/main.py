@@ -98,7 +98,7 @@ def export_data(fmt: str, run_id_str: str) -> Path:
     return dest
 
 
-def publish_to_supabase(log, removals: dict = None) -> None:
+def publish_to_supabase(log, removals: dict = None) -> dict:
     import geocode
     geocode.run()
     conn = database.get_connection()
@@ -120,14 +120,44 @@ def publish_to_supabase(log, removals: dict = None) -> None:
                         prop.get("council"), prop.get("ds_ref") or prop.get("address"), exc)
     print(f"Published: {new_count} new │ {updated_count} updated │ {error_count} errors")
 
-    if removals:
-        total_deleted = 0
-        for council, refs in removals.items():
-            deleted = database.delete_from_supabase(council, refs)
-            total_deleted += deleted
-            if deleted:
-                log.info("Deleted %d removed properties from Supabase for %s", deleted, council)
+    # Delete removed properties from Supabase.
+    # In --publish-only mode, removals is None so we detect stale entries by
+    # comparing what's in SQLite vs what councils scraped today.
+    if removals is None:
+        today = __import__("datetime").date.today().isoformat()
+        removals = {}
+        for council_row in conn.execute(
+            "SELECT DISTINCT council FROM derelict_sites WHERE last_updated = ?", (today,)
+        ).fetchall():
+            council = council_row[0]
+            stale = conn.execute(
+                "SELECT ds_ref FROM derelict_sites WHERE council = ? AND last_updated < ?",
+                (council, today),
+            ).fetchall()
+            if stale:
+                removals[council] = [r[0] for r in stale if r[0]]
+
+    total_deleted = 0
+    for council, refs in removals.items():
+        deleted = database.delete_from_supabase(council, refs)
+        total_deleted += deleted
+        if deleted:
+            log.info("Deleted %d removed properties from Supabase for %s", deleted, council)
+    if total_deleted:
         print(f"Deleted from Supabase: {total_deleted} removed properties")
+
+    no_coords = conn.execute(
+        "SELECT COUNT(*) FROM derelict_sites WHERE lat IS NULL OR lng IS NULL"
+    ).fetchone()[0]
+
+    return {
+        "published_new": new_count,
+        "published_updated": updated_count,
+        "publish_errors": error_count,
+        "supabase_deleted": total_deleted,
+        "no_coords": no_coords,
+        "total": total,
+    }
 
 
 def main():
@@ -145,7 +175,7 @@ def main():
 
     if args.publish_only:
         database.init_db()
-        publish_to_supabase(log)
+        publish_to_supabase(log, removals=None)
         sys.exit(0)
 
     if not args.dry_run:
@@ -195,9 +225,10 @@ def main():
         import geocode
         geocode.run()
 
+    publish_stats = {}
     if args.publish and not args.dry_run:
         removals = {r["code"]: r["removed_refs"] for r in ok if r.get("removed_refs")}
-        publish_to_supabase(log, removals)
+        publish_stats = publish_to_supabase(log, removals)
 
     if args.export:
         dest = export_data(args.export, rid)
@@ -205,7 +236,7 @@ def main():
 
     if not args.dry_run:
         import notify
-        notify.send(results, run_date=rid[:10])
+        notify.send(results, run_date=rid[:10], publish_stats=publish_stats)
 
     sys.exit(0 if not errors else 1)
 

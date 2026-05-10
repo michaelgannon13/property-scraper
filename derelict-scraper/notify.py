@@ -27,10 +27,12 @@ def _fmt_valuation(val) -> str:
     return f"€{val:,.0f}"
 
 
-def _build_html(run_date: str, results: list, new_props: list, removed_props: list) -> str:
+def _build_html(run_date: str, results: list, new_props: list, removed_props: list,
+                publish_stats: dict = None) -> str:
     ok      = [r for r in results if r["status"] == "ok"]
     errors  = [r for r in results if r["status"] != "ok"]
     total   = sum(r["rows"] for r in ok)
+    ps      = publish_stats or {}
 
     status_icon  = "✅" if not errors else "⚠️"
     subject_line = f"{status_icon} Revive Ireland — Nightly Scrape {run_date}"
@@ -102,6 +104,18 @@ def _build_html(run_date: str, results: list, new_props: list, removed_props: li
         <strong style="color:#2d6a4f">{len(new_props)} new</strong> &nbsp;│&nbsp;
         <strong style="color:#c0392b">{len(removed_props)} removed</strong>
       </p>
+      {f'''<p style="font-size:13px;color:#555;background:#f9f9f9;padding:8px 12px;border-left:3px solid #ccc">
+        <strong>Supabase:</strong>
+        {ps.get("published_new", 0)} new &nbsp;│&nbsp;
+        {ps.get("published_updated", 0)} updated &nbsp;│&nbsp;
+        <span style="color:{'#c0392b' if ps.get('publish_errors') else '#888'}">
+          {ps.get("publish_errors", 0)} errors
+        </span> &nbsp;│&nbsp;
+        {ps.get("supabase_deleted", 0)} deleted &nbsp;│&nbsp;
+        <span style="color:{'#c0392b' if ps.get('no_coords') else '#2d6a4f'}">
+          {ps.get("no_coords", 0)} missing coords
+        </span>
+      </p>''' if ps else ''}
 
       <h3 style="color:#333">📋 Council Status</h3>
       <table style="border-collapse:collapse;width:100%;font-size:13px">
@@ -124,7 +138,7 @@ def _build_html(run_date: str, results: list, new_props: list, removed_props: li
     """
 
 
-def send(results: list, run_date: str = None) -> None:
+def send(results: list, run_date: str = None, publish_stats: dict = None) -> None:
     api_key = os.getenv("RESEND_API_KEY")
     if not api_key:
         print("RESEND_API_KEY not set — skipping email notification")
@@ -143,7 +157,7 @@ def send(results: list, run_date: str = None) -> None:
     status = "✅" if not errors else "⚠️"
     subject = f"{status} Revive Ireland — {run_date} · {len(ok)}/{len(results)} councils · {len(new_props)} new"
 
-    html = _build_html(run_date, results, new_props, removed_props)
+    html = _build_html(run_date, results, new_props, removed_props, publish_stats)
 
     resp = requests.post(
         _RESEND_URL,

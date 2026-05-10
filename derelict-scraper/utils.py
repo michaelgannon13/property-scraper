@@ -201,4 +201,11 @@ def normalise_dataframe(df, council_code: str, source_file: str) -> list:
         else:
             entry["property_type"] = classify_property_type(entry.get("address"))
         rows.append(entry)
+
+    if not rows:
+        logging.getLogger("derelict").warning(
+            "[%s] normalise_dataframe produced 0 rows from %s — "
+            "all rows were filtered (bad column map or PDF parse failure)",
+            council_code, source_file,
+        )
     return rows
