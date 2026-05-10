@@ -2,7 +2,7 @@ import os
 import re
 import sqlite3
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import requests as _requests
 from dotenv import load_dotenv
@@ -87,6 +87,34 @@ def _build_payload(prop: dict) -> dict:
     }
 
 
+_SUPABASE_REST_URL = "https://wpgrcieidaalkkgococi.supabase.co/rest/v1/properties_large"
+
+
+def delete_from_supabase(council: str, ds_refs: list) -> int:
+    """Delete specific properties from Supabase that were removed from council registers."""
+    if not ds_refs:
+        return 0
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    key = service_key or _ANON_KEY
+    headers = {"apikey": key, "Authorization": f"Bearer {key}"}
+    deleted = 0
+    for ds_ref in ds_refs:
+        if not ds_ref:
+            continue
+        try:
+            resp = _requests.delete(
+                _SUPABASE_REST_URL,
+                params={"county": f"eq.{council}", "council_reference": f"eq.{ds_ref}"},
+                headers=headers,
+                timeout=10,
+            )
+            if resp.status_code in (200, 204):
+                deleted += 1
+        except Exception:
+            pass
+    return deleted
+
+
 def upsert_property(prop: dict) -> dict:
     """POST a single property to the Supabase upsert_property Edge Function."""
     if not prop.get("address") or not prop.get("ds_ref"):
@@ -150,7 +178,16 @@ def init_db() -> None:
 
 
 def replace_council(conn: sqlite3.Connection, council_code: str,
-                    rows: list, source_file: str) -> int:
+                    rows: list, source_file: str) -> tuple:
+    today = date.today().isoformat()
+
+    # Clear legacy NULL ds_ref rows that can't participate in upserts
+    with conn:
+        conn.execute(
+            "DELETE FROM derelict_sites WHERE council = ? AND ds_ref IS NULL",
+            (council_code,),
+        )
+
     if rows:
         with conn:
             conn.executemany(
@@ -178,7 +215,25 @@ def replace_council(conn: sqlite3.Connection, council_code: str,
                        property_type         = excluded.property_type""",
                 rows,
             )
-    return len(rows)
+
+    # Detect and remove stale rows (existed for this council but not in today's scrape).
+    # Only run if we got a non-empty result — empty rows likely means a parse error,
+    # and we don't want to wipe the council's data in that case.
+    removed_refs = []
+    if rows:
+        with conn:
+            stale = conn.execute(
+                "SELECT ds_ref FROM derelict_sites WHERE council = ? AND last_updated < ?",
+                (council_code, today),
+            ).fetchall()
+            removed_refs = [r[0] for r in stale if r[0]]
+            if removed_refs:
+                conn.execute(
+                    "DELETE FROM derelict_sites WHERE council = ? AND last_updated < ?",
+                    (council_code, today),
+                )
+
+    return len(rows), removed_refs
 
 
 def get_changes_since(date_str: str, successful_councils: list) -> dict:
