@@ -468,7 +468,7 @@
       "Address of property": "address",
       "Owner": "owner",
       "Date entered on Register": "date_entered_register",
-      "Date Date entered on removed Register from Register": "date_entered_register",
+      "Date Removed from Register": "date_entered_register",
       "Market Value": "valuation",
       "Market Value Date": "valuation_date"
     }

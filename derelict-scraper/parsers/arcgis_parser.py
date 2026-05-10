@@ -48,7 +48,9 @@ def parse(url: str, column_map: dict, session: requests.Session) -> pd.DataFrame
         features = data.get("features", [])
         all_features.extend(features)
 
-        if not features or not data.get("exceededTransferLimit"):
+        # Stop when the page is empty. Also stop when the server doesn't signal
+        # more pages AND we got fewer records than requested (last page).
+        if not features or (not data.get("exceededTransferLimit") and len(features) < 1000):
             break
         offset += 1000
 
