@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import sqlite3
@@ -110,8 +111,10 @@ def delete_from_supabase(council: str, ds_refs: list) -> int:
             )
             if resp.status_code in (200, 204):
                 deleted += 1
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger("derelict").warning(
+                "delete_from_supabase failed for %s/%s: %s", council, ds_ref, exc
+            )
     return deleted
 
 
@@ -212,7 +215,8 @@ def replace_council(conn: sqlite3.Connection, council_code: str,
                        days_on_register      = excluded.days_on_register,
                        last_updated          = excluded.last_updated,
                        raw_source_file       = excluded.raw_source_file,
-                       property_type         = excluded.property_type""",
+                       property_type         = excluded.property_type,
+                       first_seen            = COALESCE(first_seen, DATE('now'))""",
                 rows,
             )
 

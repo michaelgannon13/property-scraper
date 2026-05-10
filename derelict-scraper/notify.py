@@ -171,4 +171,8 @@ def send(results: list, run_date: str = None, publish_stats: dict = None) -> Non
         timeout=15,
     )
     resp.raise_for_status()
-    print(f"Digest email sent → {_TO_ADDRESS} (id: {resp.json().get('id')})")
+    try:
+        email_id = resp.json().get("id")
+    except Exception:
+        email_id = "unknown"
+    print(f"Digest email sent → {_TO_ADDRESS} (id: {email_id})")
