@@ -16,6 +16,10 @@ _EDGE_FUNCTION_URL = os.getenv(
     "SUPABASE_UPSERT_URL",
     "https://wpgrcieidaalkkgococi.supabase.co/functions/v1/upsert_property",
 )
+_PURGE_FUNCTION_URL = os.getenv(
+    "SUPABASE_PURGE_URL",
+    "https://wpgrcieidaalkkgococi.supabase.co/functions/v1/purge_removed_properties",
+)
 _ANON_KEY = os.getenv(
     "SUPABASE_ANON_KEY",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndwZ3JjaWVpZGFhbGtrZ29jb2NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzODk0NzksImV4cCI6MjA5MDk2NTQ3OX0.W4lD56ON6bV3YKytEaaamxHcWA1at21oVlLxY1rZBKo",
@@ -88,34 +92,27 @@ def _build_payload(prop: dict) -> dict:
     }
 
 
-_SUPABASE_REST_URL = "https://wpgrcieidaalkkgococi.supabase.co/rest/v1/properties_large"
-
-
 def delete_from_supabase(council: str, ds_refs: list) -> int:
-    """Delete specific properties from Supabase that were removed from council registers."""
+    """Delete removed properties via the purge_removed_properties Edge Function."""
     if not ds_refs:
         return 0
-    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    key = service_key or _ANON_KEY
-    headers = {"apikey": key, "Authorization": f"Bearer {key}"}
-    deleted = 0
-    for ds_ref in ds_refs:
-        if not ds_ref:
-            continue
-        try:
-            resp = _requests.delete(
-                _SUPABASE_REST_URL,
-                params={"county": f"eq.{council}", "council_reference": f"eq.{ds_ref}"},
-                headers=headers,
-                timeout=10,
-            )
-            if resp.status_code in (200, 204):
-                deleted += 1
-        except Exception as exc:
-            logging.getLogger("derelict").warning(
-                "delete_from_supabase failed for %s/%s: %s", council, ds_ref, exc
-            )
-    return deleted
+    valid_refs = [r for r in ds_refs if r]
+    if not valid_refs:
+        return 0
+    try:
+        resp = _requests.post(
+            _PURGE_FUNCTION_URL,
+            json={"council": council, "ds_refs": valid_refs},
+            headers={"x-api-key": _INGEST_API_KEY, "Content-Type": "application/json"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json().get("deleted", 0)
+    except Exception as exc:
+        logging.getLogger("derelict").warning(
+            "delete_from_supabase failed for %s: %s", council, exc
+        )
+        return 0
 
 
 def upsert_property(prop: dict) -> dict:
