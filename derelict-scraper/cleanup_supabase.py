@@ -35,7 +35,12 @@ def main():
     resp = requests.post(
         CLEANUP_URL,
         json={"councils": payload},
-        headers={"x-api-key": database._INGEST_API_KEY, "Content-Type": "application/json"},
+        headers={
+            "x-api-key": database._INGEST_API_KEY,
+            "Authorization": f"Bearer {database._ANON_KEY}",
+            "apikey": database._ANON_KEY,
+            "Content-Type": "application/json",
+        },
         timeout=120,
     )
     resp.raise_for_status()

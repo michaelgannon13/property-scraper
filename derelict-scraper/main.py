@@ -146,6 +146,9 @@ def publish_to_supabase(log, removals: dict = None) -> dict:
     if total_deleted:
         print(f"Deleted from Supabase: {total_deleted} removed properties")
 
+    orphans_deleted = database.sync_supabase_cleanup(conn)
+    total_deleted += orphans_deleted
+
     no_coords = conn.execute(
         "SELECT COUNT(*) FROM derelict_sites WHERE lat IS NULL OR lng IS NULL"
     ).fetchone()[0]
