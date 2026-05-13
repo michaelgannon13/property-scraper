@@ -181,14 +181,14 @@ def replace_council(conn: sqlite3.Connection, council_code: str,
                     rows: list, source_file: str) -> tuple:
     today = date.today().isoformat()
 
-    # Clear legacy NULL ds_ref rows that can't participate in upserts
-    with conn:
-        conn.execute(
-            "DELETE FROM derelict_sites WHERE council = ? AND ds_ref IS NULL",
-            (council_code,),
-        )
-
     if rows:
+        # Clear legacy NULL ds_ref rows that can't participate in upserts
+        with conn:
+            conn.execute(
+                "DELETE FROM derelict_sites WHERE council = ? AND ds_ref IS NULL",
+                (council_code,),
+            )
+
         with conn:
             conn.executemany(
                 """INSERT INTO derelict_sites
