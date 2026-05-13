@@ -20,6 +20,10 @@ _PURGE_FUNCTION_URL = os.getenv(
     "SUPABASE_PURGE_URL",
     "https://wpgrcieidaalkkgococi.supabase.co/functions/v1/purge_removed_properties",
 )
+_CLEANUP_FUNCTION_URL = os.getenv(
+    "SUPABASE_CLEANUP_URL",
+    "https://wpgrcieidaalkkgococi.supabase.co/functions/v1/cleanup_orphans",
+)
 _ANON_KEY = os.getenv(
     "SUPABASE_ANON_KEY",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndwZ3JjaWVpZGFhbGtrZ29jb2NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzODk0NzksImV4cCI6MjA5MDk2NTQ3OX0.W4lD56ON6bV3YKytEaaamxHcWA1at21oVlLxY1rZBKo",
@@ -115,6 +119,36 @@ def delete_from_supabase(council: str, ds_refs: list) -> int:
         return 0
 
 
+def sync_supabase_cleanup(conn) -> int:
+    """Delete any Supabase rows whose council_reference is no longer in SQLite."""
+    councils = [r[0] for r in conn.execute(
+        "SELECT DISTINCT council FROM derelict_sites"
+    ).fetchall()]
+    payload = []
+    for council in councils:
+        refs = [r[0] for r in conn.execute(
+            "SELECT ds_ref FROM derelict_sites WHERE council = ? AND ds_ref IS NOT NULL",
+            (council,),
+        ).fetchall()]
+        payload.append({"council": council, "valid_refs": refs})
+    try:
+        resp = _requests.post(
+            _CLEANUP_FUNCTION_URL,
+            json={"councils": payload},
+            headers={"x-api-key": _INGEST_API_KEY, "Content-Type": "application/json"},
+            timeout=120,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        deleted = result.get("deleted", 0)
+        if deleted:
+            logging.getLogger("derelict").info("sync_supabase_cleanup: deleted %d orphans", deleted)
+        return deleted
+    except Exception as exc:
+        logging.getLogger("derelict").warning("sync_supabase_cleanup failed: %s", exc)
+        return 0
+
+
 def upsert_property(prop: dict) -> dict:
     """POST a single property to the Supabase upsert_property Edge Function."""
     if not prop.get("address") or not prop.get("ds_ref"):
@@ -181,14 +215,14 @@ def replace_council(conn: sqlite3.Connection, council_code: str,
                     rows: list, source_file: str) -> tuple:
     today = date.today().isoformat()
 
-    # Clear legacy NULL ds_ref rows that can't participate in upserts
-    with conn:
-        conn.execute(
-            "DELETE FROM derelict_sites WHERE council = ? AND ds_ref IS NULL",
-            (council_code,),
-        )
-
     if rows:
+        # Clear legacy NULL ds_ref rows that can't participate in upserts
+        with conn:
+            conn.execute(
+                "DELETE FROM derelict_sites WHERE council = ? AND ds_ref IS NULL",
+                (council_code,),
+            )
+
         with conn:
             conn.executemany(
                 """INSERT INTO derelict_sites

@@ -147,7 +147,7 @@ def send(results: list, run_date: str = None, publish_stats: dict = None) -> Non
     if not run_date:
         run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    successful_councils = [r["code"] for r in results if r["status"] == "ok"]
+    successful_councils = [r["code"] for r in results if r["status"] == "ok" and r["rows"] > 0]
     changes = database.get_changes_since(run_date, successful_councils)
     new_props     = changes["new"]
     removed_props = changes["removed"]
