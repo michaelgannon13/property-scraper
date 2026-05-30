@@ -210,6 +210,13 @@ def init_db() -> None:
             except Exception:
                 pass
 
+        # Geocoding tracking columns (added safely - non-breaking)
+        for col, coltype in (("geocode_method", "TEXT"), ("geocode_status", "TEXT"), ("last_geocoded_at", "TEXT")):
+            try:
+                conn.execute(f"ALTER TABLE derelict_sites ADD COLUMN {col} {coltype}")
+            except Exception:
+                pass
+
 
 def replace_council(conn: sqlite3.Connection, council_code: str,
                     rows: list, source_file: str) -> tuple:
