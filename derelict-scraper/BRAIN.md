@@ -342,3 +342,38 @@ Google Maps API key has no IP restrictions (was needed to fix IPv6 geocoding iss
 2. PPR scraper for last sale price enrichment
 3. Deal snapshot calculations (GDV, refurb cost, yield, equity)
 4. RTB rents data for yield calculations
+
+---
+
+## Geocoding Quality & Tracking Improvements (Late May 2026)
+
+Added significantly better visibility and control over geocoding without increasing risk to the main pipeline.
+
+### New Capabilities
+
+- **Tracking columns** added to `derelict_sites`:
+  - `geocode_method` (google_eircode / nominatim / google_text)
+  - `geocode_status` (success / failed)
+  - `last_geocoded_at`
+
+- **New CLI options** (available via both `geocode.py` and `main.py`):
+  - `--stats` / `--geocode-stats`: View current geocoding health and method breakdown
+  - `--failed-only` / `--regeocode-failed`: Only process addresses that previously failed
+  - `--limit`: Safety limit on how many addresses to process
+  - `--dry-run`: Preview what would be geocoded without calling external services
+  - `--show-failed`: List addresses currently needing attention (with quality notes)
+
+### Key Improvements
+- Address cleaning was strengthened with additional safe noise removal patterns.
+- Geocoding runs now always record which method succeeded and the outcome.
+- Much safer workflow for fixing the remaining bad pins (29 as of late May 2026).
+
+### Usage Examples
+```bash
+python geocode.py --stats
+python geocode.py --failed-only --limit 10 --dry-run
+python main.py --geocode --regeocode-failed --limit 5
+python geocode.py --show-failed
+```
+
+This work was done following a very conservative "safest path" approach so the main nightly pipeline remained untouched.

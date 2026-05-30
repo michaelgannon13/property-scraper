@@ -126,12 +126,25 @@ def main():
     parser.add_argument("--export", choices=["csv", "excel"], help="Export format after run")
     parser.add_argument("--dry-run", action="store_true", help="Parse only, no DB writes")
     parser.add_argument("--geocode", action="store_true", help="Geocode new addresses after scraping")
+    parser.add_argument("--regeocode-failed", "--failed-only", action="store_true",
+                        help="Re-geocode only addresses that previously failed (use together with --geocode)")
+    parser.add_argument("--geocode-stats", "--stats", action="store_true",
+                        help="Show geocoding statistics (safe, read-only)")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Limit number of addresses to geocode (use with --geocode)")
+    parser.add_argument("--geocode-dry-run", "--dry-run", action="store_true",
+                        help="Preview geocoding without calling external services (safe)")
     parser.add_argument("--publish", action="store_true", help="Push all rows to Supabase via Edge Function after scraping/geocoding")
     parser.add_argument("--publish-only", action="store_true", help="Skip scraping — just push existing SQLite rows to Supabase")
     args = parser.parse_args()
 
     rid = utils.run_id()
     log = utils.setup_logging(rid)
+
+    if args.geocode_stats:
+        import geocode
+        geocode.print_geocoding_stats()
+        sys.exit(0)
 
     if args.publish_only:
         database.init_db()
@@ -183,7 +196,7 @@ def main():
 
     if args.geocode and not args.publish and not args.dry_run:
         import geocode
-        geocode.run()
+        geocode.run(only_failed=args.regeocode_failed, limit=args.limit, dry_run=args.geocode_dry_run)
 
     if args.publish and not args.dry_run:
         publish_to_supabase(log)
