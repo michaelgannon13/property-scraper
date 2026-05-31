@@ -132,7 +132,7 @@ def main():
                         help="Show geocoding statistics (safe, read-only)")
     parser.add_argument("--limit", type=int, default=None,
                         help="Limit number of addresses to geocode (use with --geocode)")
-    parser.add_argument("--geocode-dry-run", "--dry-run", action="store_true",
+    parser.add_argument("--geocode-dry-run", action="store_true",
                         help="Preview geocoding without calling external services (safe)")
     parser.add_argument("--publish", action="store_true", help="Push all rows to Supabase via Edge Function after scraping/geocoding")
     parser.add_argument("--publish-only", action="store_true", help="Skip scraping — just push existing SQLite rows to Supabase")
