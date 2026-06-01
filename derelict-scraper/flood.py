@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 """
-Flood risk checker using the OPW (Office of Public Works) GeoServer WFS.
-Service: https://maps.opw.ie/geoserver/ows
-No API key required.
+Flood risk checker using OPW CFRAM flood extent layers.
 
-Flood zones:
-  A = High probability   (>1% annual chance of flooding)
-  B = Moderate probability (0.1–1% annual chance)
-  None = Low / outside mapped zones
+WFS endpoint: https://www.floodinfo.ie/geoserver/wfs (OPW GeoServer)
+Layers (workspace esds_floodmaps, CRS EPSG:29903 — Irish National Grid TM65):
+  ext_f_c_0100 — Fluvial (river) 1-in-100 yr  → Zone A river
+  ext_c_c_0200 — Coastal 1-in-200 yr           → Zone A coastal
+  ext_f_c_1000 — Fluvial 1-in-1000 yr          → Zone B river
+  ext_c_c_1000 — Coastal 1-in-1000 yr          → Zone B coastal
+
+Zone A = High probability (>1% AEP river or >0.5% AEP coastal)
+Zone B = Moderate probability (0.1–1% AEP river or 0.1–0.5% AEP coastal)
+None   = Low / outside all mapped flood zones
 
 flood_checked_at is only set when the API returns a definitive answer.
-If the API is unreachable or errors, the property stays unchecked and
-will be retried on the next nightly run.
+If the API is unreachable the property stays unchecked and is retried
+on the next nightly run.
 """
 import logging
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 import sys
 
 import requests
@@ -26,79 +30,63 @@ import database
 
 logger = logging.getLogger("derelict.flood")
 
-_WFS_URL = "https://maps.opw.ie/geoserver/ows"
-_DELAY = 0.25
-_TIMEOUT = 15
-_MAX_ERRORS = 10
+_WFS_URL   = "https://www.floodinfo.ie/geoserver/wfs"
+_DELAY     = 0.3      # seconds between requests
+_TIMEOUT   = 15       # seconds per HTTP call
+_MAX_ERRORS = 10      # consecutive API errors before aborting run
+_BBOX_M    = 25       # metre buffer around the point for BBOX query
 
-# These layer names are discovered at runtime via GetCapabilities.
-# Overrideable via env var for future-proofing.
-import os
-_LAYER_ZONE_A = os.getenv("OPW_FLOOD_LAYER_A", "")
-_LAYER_ZONE_B = os.getenv("OPW_FLOOD_LAYER_B", "")
+# CFRAM community-scale flood extent layers (confirmed from OPW GeoServer)
+_ZONE_A_LAYERS = [
+    "esds_floodmaps:ext_f_c_0100",  # fluvial 1-in-100 yr
+    "esds_floodmaps:ext_c_c_0200",  # coastal 1-in-200 yr
+]
+_ZONE_B_LAYERS = [
+    "esds_floodmaps:ext_f_c_1000",  # fluvial 1-in-1000 yr
+    "esds_floodmaps:ext_c_c_1000",  # coastal 1-in-1000 yr
+]
 
 
-def _discover_flood_layers(session: requests.Session) -> tuple[str, str]:
+def _wgs84_to_ing(lat: float, lng: float) -> Tuple[float, float]:
+    """Convert WGS84 lat/lng to Irish National Grid eastings/northings (EPSG:29903)."""
+    from pyproj import Transformer
+    tf = Transformer.from_crs("EPSG:4326", "EPSG:29903", always_xy=True)
+    return tf.transform(lng, lat)
+
+
+def _query_layer(lat: float, lng: float, layer: str,
+                 session: requests.Session) -> Optional[bool]:
     """
-    Query WFS GetCapabilities and find the flood zone A and B layer names.
-    Returns (layer_a, layer_b) or ("", "") on failure.
+    Return True if the point lies within the layer's flood polygons, False if not,
+    None on any API error (caller must not mark as checked).
+
+    Uses a 25 m bounding-box GetFeature query in Irish National Grid coordinates.
     """
     try:
-        resp = session.get(
-            _WFS_URL,
-            params={"service": "WFS", "version": "2.0.0", "request": "GetCapabilities"},
-            timeout=_TIMEOUT,
-        )
-        resp.raise_for_status()
-        text = resp.text.lower()
-
-        # Parse layer names containing flood zone keywords
-        import re
-        names = re.findall(r'<name>([^<]+)</name>', resp.text)
-        zone_a = next((n for n in names if "zone" in n.lower() and
-                       ("_a" in n.lower() or "zonea" in n.lower() or "zone_a" in n.lower())), "")
-        zone_b = next((n for n in names if "zone" in n.lower() and
-                       ("_b" in n.lower() or "zoneb" in n.lower() or "zone_b" in n.lower())), "")
-
-        if zone_a and zone_b:
-            logger.info("Discovered flood zone layers: A=%s B=%s", zone_a, zone_b)
-        else:
-            # Fallback: log all flood-related layers found so we can identify them
-            flood_layers = [n for n in names if "flood" in n.lower() or "zone" in n.lower()]
-            logger.warning("Could not auto-detect zone A/B layers. Flood-related layers found: %s",
-                           flood_layers)
-        return zone_a, zone_b
+        x, y = _wgs84_to_ing(lat, lng)
     except Exception as exc:
-        logger.warning("GetCapabilities failed: %s", exc)
-        return "", ""
-
-
-def _query_zone_wfs(lat: float, lng: float, layer: str,
-                    session: requests.Session) -> Optional[bool]:
-    """
-    Return True if point is within the layer, False if not, None on API error.
-    Uses WFS CQL_FILTER with INTERSECTS for a point query.
-    """
-    if not layer:
+        logger.warning("Coordinate projection failed (%s, %s): %s", lat, lng, exc)
         return None
+
+    bbox = f"{x - _BBOX_M},{y - _BBOX_M},{x + _BBOX_M},{y + _BBOX_M},EPSG:29903"
     try:
         resp = session.get(
             _WFS_URL,
             params={
-                "service": "WFS",
-                "version": "2.0.0",
-                "request": "GetPropertyValue",
-                "typeNames": layer,
-                "valueReference": "@gml:id",
-                "CQL_FILTER": f"INTERSECTS(the_geom,POINT({lng} {lat}))",
+                "service":      "WFS",
+                "version":      "1.1.0",
+                "request":      "GetFeature",
+                "typeName":     layer,
                 "outputFormat": "application/json",
-                "count": "1",
+                "maxFeatures":  "1",
+                "srsName":      "EPSG:29903",
+                "BBOX":         bbox,
             },
             timeout=_TIMEOUT,
         )
         resp.raise_for_status()
         data = resp.json()
-        return len(data.get("values", [])) > 0
+        return data.get("totalFeatures", 0) > 0
     except requests.exceptions.Timeout:
         logger.debug("WFS timeout (%.4f,%.4f) layer=%s", lat, lng, layer)
         return None
@@ -110,22 +98,37 @@ def _query_zone_wfs(lat: float, lng: float, layer: str,
         return None
 
 
-def get_flood_risk(lat: float, lng: float, layer_a: str, layer_b: str,
+def _in_any_layer(lat: float, lng: float, layers: list,
+                  session: requests.Session) -> Optional[bool]:
+    """
+    Check a list of layers sequentially. Returns True on first hit, False if all miss,
+    None if any layer returns an API error (so the property stays unclassified).
+    """
+    for layer in layers:
+        result = _query_layer(lat, lng, layer, session)
+        if result is None:
+            return None   # API error — propagate upward
+        if result:
+            return True
+        time.sleep(_DELAY)
+    return False
+
+
+def get_flood_risk(lat: float, lng: float,
                    session: Optional[requests.Session] = None) -> Optional[dict]:
     """
     Returns {"flood_zone": "A"|"B"|None, "flood_risk": "High"|"Moderate"|"Low"}
-    or None if the API was unreachable (caller should not mark as checked).
+    or None if the OPW API was unreachable (caller should not mark as checked).
     """
     s = session or requests.Session()
 
-    in_a = _query_zone_wfs(lat, lng, layer_a, s)
+    in_a = _in_any_layer(lat, lng, _ZONE_A_LAYERS, s)
     if in_a is None:
         return None
     if in_a:
         return {"flood_zone": "A", "flood_risk": "High"}
 
-    time.sleep(_DELAY)
-    in_b = _query_zone_wfs(lat, lng, layer_b, s)
+    in_b = _in_any_layer(lat, lng, _ZONE_B_LAYERS, s)
     if in_b is None:
         return None
     if in_b:
@@ -136,7 +139,7 @@ def get_flood_risk(lat: float, lng: float, layer_a: str, layer_b: str,
 
 def run():
     """
-    Check flood risk for all geocoded properties not yet checked.
+    Check flood risk for all geocoded properties not yet flood-checked.
     Safe to call every night — skips already-checked properties.
     Stops early if the OPW API appears to be down.
     """
@@ -160,21 +163,8 @@ def run():
     session = requests.Session()
     session.headers.update({
         "User-Agent": "Mozilla/5.0 (compatible; ReviveIreland/1.0)",
-        "Accept": "application/json",
+        "Accept":     "application/json",
     })
-
-    # Discover layer names (or use env var overrides)
-    layer_a = _LAYER_ZONE_A or ""
-    layer_b = _LAYER_ZONE_B or ""
-    if not layer_a or not layer_b:
-        layer_a, layer_b = _discover_flood_layers(session)
-
-    if not layer_a or not layer_b:
-        logger.warning(
-            "OPW flood zone layers could not be determined — skipping flood check. "
-            "Set OPW_FLOOD_LAYER_A and OPW_FLOOD_LAYER_B env vars to override."
-        )
-        return
 
     checked = high = moderate = low = api_errors = 0
 
@@ -186,7 +176,7 @@ def run():
             )
             break
 
-        result = get_flood_risk(row["lat"], row["lng"], layer_a, layer_b, session)
+        result = get_flood_risk(row["lat"], row["lng"], session)
 
         if result is None:
             api_errors += 1
