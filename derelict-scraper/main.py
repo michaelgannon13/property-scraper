@@ -101,6 +101,11 @@ def export_data(fmt: str, run_id_str: str) -> Path:
 def publish_to_supabase(log, removals: dict = None) -> dict:
     import geocode
     geocode.run()
+    try:
+        import flood
+        flood.run()
+    except Exception as exc:
+        log.warning("Flood risk check failed (non-fatal): %s", exc)
     conn = database.get_connection()
     rows = conn.execute("SELECT * FROM derelict_sites").fetchall()
     total = len(rows)
