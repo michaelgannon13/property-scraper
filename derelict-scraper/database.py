@@ -90,9 +90,11 @@ def _build_payload(prop: dict) -> dict:
         "building_type":      prop.get("property_type"),
         "latitude":           prop.get("lat"),
         "longitude":          prop.get("lng"),
-        "reg_no":               prop.get("reg_no"),
-        "raw_source_file":      prop.get("raw_source_file"),
+        "reg_no":                prop.get("reg_no"),
+        "raw_source_file":       prop.get("raw_source_file"),
         "estimated_annual_levy": _estimated_levy(prop),
+        "flood_zone":            prop.get("flood_zone"),
+        "flood_risk":            prop.get("flood_risk"),
     }
 
 
@@ -204,7 +206,8 @@ def init_db() -> None:
             );
         """)
         for col, coltype in (("lat", "REAL"), ("lng", "REAL"), ("property_type", "TEXT"),
-                             ("first_seen", "TEXT")):
+                             ("first_seen", "TEXT"), ("flood_zone", "TEXT"),
+                             ("flood_risk", "TEXT"), ("flood_checked_at", "TEXT")):
             try:
                 conn.execute(f"ALTER TABLE derelict_sites ADD COLUMN {col} {coltype}")
             except Exception:

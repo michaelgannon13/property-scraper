@@ -101,6 +101,8 @@ def export_data(fmt: str, run_id_str: str) -> Path:
 def publish_to_supabase(log, removals: dict = None) -> dict:
     import geocode
     geocode.run()
+    import flood
+    flood.run()
     conn = database.get_connection()
     rows = conn.execute("SELECT * FROM derelict_sites").fetchall()
     total = len(rows)
@@ -231,6 +233,8 @@ def main():
     if args.geocode and not args.publish and not args.dry_run:
         import geocode
         geocode.run()
+        import flood
+        flood.run()
 
     publish_stats = {}
     if args.publish and not args.dry_run:
